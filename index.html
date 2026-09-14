@@ -1,0 +1,569 @@
+<!DOCTYPE html>
+<html lang="zh-Hant" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>網站安全體檢儀</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@600;700&family=Noto+Sans+TC:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Noto Sans TC', 'system-ui', 'sans-serif'],
+            serif: ['Noto Serif TC', 'Songti TC', 'Georgia', 'serif'],
+            mono: ['IBM Plex Mono', 'ui-monospace', 'Menlo', 'Consolas', 'monospace'],
+          },
+        },
+      },
+    };
+  </script>
+  <style>
+    html { background: #020617; }
+    body {
+      background-color: #020617;
+      background-image: radial-gradient(rgba(148, 163, 184, .11) 1px, transparent 1px);
+      background-size: 22px 22px;
+      color: #e2e8f0;
+    }
+    .rule { border-top: 1px solid #1e293b; }
+    .hair { border-color: #1e293b; }
+    .kicker { font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: #64748b; }
+    .progress { height: 2px; background: linear-gradient(90deg, transparent 0%, #818cf8 50%, transparent 100%); background-size: 40% 100%; background-repeat: no-repeat; animation: slide 1.1s linear infinite; }
+    @keyframes slide { from { background-position: -40% 0; } to { background-position: 140% 0; } }
+    .fade-in { animation: fade .3s ease-out; } @keyframes fade { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+    .skeleton { background: linear-gradient(90deg, rgba(148,163,184,.06) 25%, rgba(148,163,184,.14) 50%, rgba(148,163,184,.06) 75%); background-size: 200% 100%; animation: shimmer 1.4s infinite; }
+    @keyframes shimmer { to { background-position: -200% 0; } }
+    details > summary { list-style: none; cursor: pointer; } details > summary::-webkit-details-marker { display: none; }
+    details[open] .chev { transform: rotate(90deg); }
+    .chev { transition: transform .15s; display: inline-block; }
+    pre { white-space: pre-wrap; word-break: break-word; }
+    #toast { transition: opacity .2s, transform .2s; }
+    #score-bar { transition: width .9s cubic-bezier(.2,.8,.2,1), background-color .4s; }
+    input::placeholder, textarea::placeholder { color: #475569; }
+    .tick { position: absolute; top: -3px; width: 1px; height: 14px; background: #334155; }
+  </style>
+</head>
+<body class="min-h-screen antialiased font-sans">
+
+  <!-- Top bar -->
+  <header class="border-b hair">
+    <div class="max-w-5xl mx-auto px-5 h-14 flex items-center justify-between">
+      <div class="flex items-baseline gap-3">
+        <span class="font-serif text-lg font-bold text-slate-50">網站安全體檢儀</span>
+        <span class="kicker hidden sm:inline">Passive Auditor · v1.0</span>
+      </div>
+      <div class="flex items-center gap-5 font-mono text-[11px] text-slate-400">
+        <span class="flex items-center gap-2"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>PASSIVE-ONLY</span>
+        <span id="llm-badge" class="flex items-center gap-2"><span class="w-1.5 h-1.5 rounded-full bg-slate-600"></span>ADVISOR …</span>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-5xl mx-auto px-5 pb-28">
+
+    <!-- Hero -->
+    <section class="pt-16 pb-12 grid md:grid-cols-12 gap-10 items-end">
+      <div class="md:col-span-7">
+        <div class="kicker mb-4">01 — 被動式檢測</div>
+        <h1 class="font-serif text-4xl sm:text-5xl font-bold leading-[1.15] text-slate-50">
+          看清楚你的網站，<br>少了哪幾道門。
+        </h1>
+        <p class="mt-6 text-slate-400 leading-relaxed max-w-xl">
+          只讀取公開回傳的 HTTP 標頭與靜態檔案。金鑰外洩、檔案裸露、缺少的防線，30 秒內列清楚，
+          每一項都附上可以直接貼給 Cursor、Claude 的修復指令。給用 AI 工具搭站、但沒時間變成資安專家的人。
+        </p>
+      </div>
+      <div class="md:col-span-5">
+        <div class="kicker mb-3">檢查項目 · 基礎分 100</div>
+        <table class="w-full font-mono text-[12px] text-slate-400">
+          <tbody>
+            <tr class="border-t hair"><td class="py-1.5">強制 HTTPS</td><td class="py-1.5 text-right text-slate-500">−20</td></tr>
+            <tr class="border-t hair"><td class="py-1.5">Content-Security-Policy</td><td class="py-1.5 text-right text-slate-500">−20</td></tr>
+            <tr class="border-t hair"><td class="py-1.5">Strict-Transport-Security</td><td class="py-1.5 text-right text-slate-500">−15</td></tr>
+            <tr class="border-t hair"><td class="py-1.5">X-Frame-Options</td><td class="py-1.5 text-right text-slate-500">−15</td></tr>
+            <tr class="border-t hair"><td class="py-1.5">X-Content-Type-Options</td><td class="py-1.5 text-right text-slate-500">−10</td></tr>
+            <tr class="border-t hair"><td class="py-1.5">Cookie HttpOnly / Secure</td><td class="py-1.5 text-right text-slate-500">−5 / −5</td></tr>
+            <tr class="border-t hair"><td class="py-1.5 text-slate-300">前端金鑰外洩</td><td class="py-1.5 text-right text-rose-300">−30</td></tr>
+            <tr class="border-t hair"><td class="py-1.5 text-slate-300">/.env 裸露</td><td class="py-1.5 text-right text-rose-300">−30</td></tr>
+            <tr class="border-t border-b hair"><td class="py-1.5 text-slate-300">/.git/config 裸露</td><td class="py-1.5 text-right text-rose-300">−20</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Form -->
+    <section class="border hair bg-slate-950/70">
+      <div id="progress" class="progress hidden"></div>
+      <form id="scan-form" class="p-6 sm:p-8" novalidate>
+        <label for="url" class="kicker block mb-3">Target URL</label>
+        <div class="flex flex-col sm:flex-row gap-3">
+          <input id="url" type="text" inputmode="url" autocomplete="off" spellcheck="false" placeholder="your-app.vercel.app"
+            class="flex-1 bg-transparent border hair rounded px-4 py-3 font-mono text-sm text-slate-100 focus:outline-none focus:border-indigo-400">
+          <button id="submit" type="submit" disabled
+            class="rounded px-6 py-3 text-sm font-medium bg-indigo-500 hover:bg-indigo-400 text-white disabled:opacity-30 disabled:cursor-not-allowed transition-colors">開始體檢 →</button>
+        </div>
+        <label class="mt-5 flex items-start gap-3 text-sm text-slate-400 cursor-pointer select-none">
+          <input id="auth" type="checkbox" class="mt-1 w-4 h-4 rounded-sm border-slate-600 bg-slate-950 text-indigo-500 focus:ring-0 focus:ring-offset-0">
+          <span>我是這個網站的擁有者或已取得檢測授權。本工具僅讀取公開回傳的標頭與靜態檔案，不做注入、爆破或掃描。</span>
+        </label>
+        <div class="mt-4 font-mono text-[11px] text-slate-600">每個來源 IP 每分鐘 3 次 · 內網、本機與保留網段直接拒絕</div>
+        <div id="loading" class="hidden mt-5 pt-5 rule font-mono text-[12px] text-slate-300">
+          <span class="text-indigo-300">▸</span> <span id="loading-text">正在準備檢測</span>
+        </div>
+        <div id="error" class="hidden mt-5 pt-5 rule text-sm text-rose-300"></div>
+      </form>
+    </section>
+
+    <!-- Results -->
+    <div id="results" class="hidden mt-16 space-y-16">
+
+      <!-- Report header -->
+      <section class="fade-in">
+        <div class="flex flex-wrap items-baseline justify-between gap-3 mb-6">
+          <div class="kicker">Report · <span id="report-time"></span></div>
+          <div class="font-mono text-[12px] text-slate-400 break-all"><a id="final-url" class="hover:text-indigo-300 underline decoration-slate-700 underline-offset-4" target="_blank" rel="noopener noreferrer"></a> <span id="status-chip" class="text-slate-600"></span></div>
+        </div>
+        <div class="grid md:grid-cols-12 gap-8 border-t hair pt-8">
+          <div class="md:col-span-5">
+            <div class="flex items-end gap-5">
+              <div id="score" class="font-serif text-8xl font-bold leading-none tabular-nums text-slate-50">0</div>
+              <div class="pb-2">
+                <div id="grade" class="font-serif text-3xl font-bold leading-none">A</div>
+                <div id="grade-label" class="mt-1.5 font-mono text-[12px] text-slate-400"></div>
+              </div>
+            </div>
+            <div class="mt-7 relative">
+              <div class="h-1.5 bg-slate-800 relative">
+                <div id="score-bar" class="absolute inset-y-0 left-0 bg-indigo-400" style="width:0%"></div>
+                <span class="tick" style="left:50%"></span><span class="tick" style="left:70%"></span><span class="tick" style="left:85%"></span>
+              </div>
+              <div class="relative h-5 font-mono text-[10px] text-slate-600">
+                <span class="absolute left-0 top-1.5">0</span>
+                <span class="absolute top-1.5" style="left:50%">50 · C</span>
+                <span class="absolute top-1.5" style="left:70%">70 · B</span>
+                <span class="absolute top-1.5" style="left:85%">85 · A</span>
+              </div>
+            </div>
+          </div>
+          <div class="md:col-span-7 md:pl-8 md:border-l hair">
+            <div class="kicker mb-2">偵測到的技術棧</div>
+            <div id="tech" class="flex flex-wrap gap-2 mb-6"></div>
+            <div id="stats" class="grid grid-cols-3 border-t border-b hair divide-x hair"></div>
+            <div id="notes" class="hidden mt-4 font-mono text-[11px] text-amber-300/90 space-y-1"></div>
+            <div class="mt-5 flex gap-4 font-mono text-[12px]">
+              <button id="download" class="text-slate-400 hover:text-slate-100 underline decoration-slate-700 underline-offset-4">下載 JSON</button>
+              <button id="rescan" class="text-slate-400 hover:text-slate-100 underline decoration-slate-700 underline-offset-4">重新檢測</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Issues -->
+      <section class="fade-in">
+        <div class="flex items-baseline justify-between mb-2">
+          <div class="kicker">02 — 待修復</div>
+          <span id="issues-count" class="font-mono text-[12px] text-slate-500"></span>
+        </div>
+        <h2 class="font-serif text-2xl font-bold text-slate-50 mb-6">風險與修復指令</h2>
+        <div id="issues" class="border-t hair"></div>
+      </section>
+
+      <!-- Advisor -->
+      <section class="fade-in">
+        <div class="flex items-baseline justify-between mb-2">
+          <div class="kicker">03 — 顧問分析</div>
+          <div class="flex items-center gap-4 font-mono text-[12px]">
+            <span id="ai-provider" class="text-slate-500"></span>
+            <button id="ai-regenerate" class="hidden text-slate-400 hover:text-slate-100 underline decoration-slate-700 underline-offset-4">重新生成</button>
+          </div>
+        </div>
+        <h2 class="font-serif text-2xl font-bold text-slate-50 mb-6">白話診斷與架構專屬建議</h2>
+        <div class="border-t hair pt-6">
+          <div id="ai-loading" class="space-y-3">
+            <div class="skeleton h-3.5 w-2/3"></div>
+            <div class="skeleton h-3.5 w-full"></div>
+            <div class="skeleton h-3.5 w-5/6"></div>
+            <div class="skeleton h-20 w-full mt-5"></div>
+          </div>
+          <div id="ai-content" class="hidden space-y-8"></div>
+
+          <div class="mt-10 pt-6 rule">
+            <div class="kicker mb-4">追問顧問</div>
+            <div id="chat" class="space-y-4 mb-4"></div>
+            <div class="flex gap-3">
+              <textarea id="chat-input" rows="1" placeholder="例如：CSP 會不會把我用的 Google Analytics 擋掉？"
+                class="flex-1 resize-none bg-transparent border hair rounded px-4 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-indigo-400"></textarea>
+              <button id="chat-send" class="rounded px-4 py-2.5 text-sm font-medium bg-slate-800 hover:bg-slate-700 text-slate-100 disabled:opacity-30">送出</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Passed -->
+      <section class="fade-in">
+        <div class="kicker mb-2">04 — 通過</div>
+        <h2 class="font-serif text-2xl font-bold text-slate-50 mb-6">已到位的防線</h2>
+        <div id="passed" class="border-t hair"></div>
+      </section>
+
+      <!-- Details -->
+      <details class="fade-in border-t border-b hair">
+        <summary class="py-4 flex items-center justify-between font-mono text-[12px] text-slate-400 hover:text-slate-200">
+          <span>檢測明細 — 轉址鏈、掃描的 JS、原始回應標頭</span><span class="chev">›</span>
+        </summary>
+        <div id="details" class="pb-6 text-sm text-slate-400 space-y-6"></div>
+      </details>
+
+      <p class="font-mono text-[11px] leading-relaxed text-slate-600 max-w-3xl">
+        本工具僅執行被動、非侵入的公開資源讀取：首頁、站內 JS、/.env、/.git/config 各一次 GET，不構成滲透測試。
+        評分反映基礎防線的配置狀況，不代表網站沒有其他漏洞。
+      </p>
+    </div>
+  </main>
+
+  <div id="toast" class="fixed bottom-6 left-1/2 -translate-x-1/2 translate-y-3 opacity-0 pointer-events-none px-4 py-2 rounded bg-slate-100 text-slate-950 font-mono text-[12px] shadow-lg">已複製</div>
+
+  <script>
+    // ------------------------------------------------------------------
+    // 狀態與工具
+    // ------------------------------------------------------------------
+    const $ = (s) => document.querySelector(s);
+    const els = {
+      form: $('#scan-form'), url: $('#url'), auth: $('#auth'), submit: $('#submit'), progress: $('#progress'),
+      loading: $('#loading'), loadingText: $('#loading-text'), error: $('#error'), results: $('#results'),
+      score: $('#score'), scoreBar: $('#score-bar'), grade: $('#grade'), gradeLabel: $('#grade-label'), statusChip: $('#status-chip'),
+      reportTime: $('#report-time'), finalUrl: $('#final-url'), tech: $('#tech'), stats: $('#stats'), notes: $('#notes'),
+      issues: $('#issues'), issuesCount: $('#issues-count'), passed: $('#passed'), details: $('#details'),
+      aiLoading: $('#ai-loading'), aiContent: $('#ai-content'), aiProvider: $('#ai-provider'), aiRegenerate: $('#ai-regenerate'),
+      chat: $('#chat'), chatInput: $('#chat-input'), chatSend: $('#chat-send'),
+      download: $('#download'), rescan: $('#rescan'), toast: $('#toast'), llmBadge: $('#llm-badge'),
+    };
+    const state = { scan: null, consult: null, history: [], busy: false };
+
+    const TIPS = [
+      '解析網域，確認為公開 IP', '檢查 HTTPS 是否強制導向', '讀取 HTTP 安全標頭', '分析 Cookie 的 HttpOnly / Secure 屬性',
+      '掃描站內 JS 是否夾帶 API 金鑰', '確認 /.env 與 /.git/config 沒有裸露', '辨識技術棧', '規則引擎計分',
+    ];
+    const GRADE = {
+      A: { text: 'text-emerald-300', bar: '#34d399' },
+      B: { text: 'text-indigo-300', bar: '#818cf8' },
+      C: { text: 'text-amber-300', bar: '#fbbf24' },
+      F: { text: 'text-rose-300', bar: '#fb7185' },
+    };
+    const SEV = {
+      critical: { label: 'CRITICAL', dot: 'bg-rose-400', text: 'text-rose-300' },
+      high:     { label: 'HIGH',     dot: 'bg-orange-400', text: 'text-orange-300' },
+      medium:   { label: 'MEDIUM',   dot: 'bg-amber-400', text: 'text-amber-300' },
+      low:      { label: 'LOW',      dot: 'bg-sky-400', text: 'text-sky-300' },
+      info:     { label: 'ADVISORY', dot: 'bg-slate-500', text: 'text-slate-400' },
+    };
+
+    const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    const show = (el, on = true) => el.classList.toggle('hidden', !on);
+
+    function showError(msg) { els.error.textContent = msg; show(els.error, true); }
+    function clearError() { els.error.textContent = ''; show(els.error, false); }
+
+    let toastTimer = null;
+    function toast(msg) {
+      els.toast.textContent = msg;
+      els.toast.classList.remove('opacity-0', 'translate-y-3');
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => els.toast.classList.add('opacity-0', 'translate-y-3'), 1500);
+    }
+
+    async function copyText(text) {
+      try { await navigator.clipboard.writeText(text); }
+      catch {
+        const ta = document.createElement('textarea');
+        ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+        document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove();
+      }
+      toast('已複製到剪貼簿');
+    }
+
+    function providerLabel(c) {
+      if (!c) return '';
+      if (c.mode === 'llm') return (c.provider === 'openai' ? 'openai-compatible' : 'anthropic') + ' · ' + (c.model || '');
+      return 'offline · rules';
+    }
+
+    function fmtTime(iso) {
+      try { const d = new Date(iso); return d.toLocaleString('zh-TW', { hour12: false }); } catch { return iso; }
+    }
+
+    // ------------------------------------------------------------------
+    // 表單與載入狀態
+    // ------------------------------------------------------------------
+    function syncSubmit() { els.submit.disabled = state.busy || !els.auth.checked || !els.url.value.trim(); }
+    els.url.addEventListener('input', syncSubmit);
+    els.auth.addEventListener('change', syncSubmit);
+
+    let tipTimer = null;
+    function setLoading(on) {
+      state.busy = on; syncSubmit();
+      show(els.loading, on); show(els.progress, on);
+      clearInterval(tipTimer);
+      if (on) {
+        let i = Math.floor(Math.random() * TIPS.length);
+        els.loadingText.textContent = TIPS[i];
+        tipTimer = setInterval(() => { i = (i + 1) % TIPS.length; els.loadingText.textContent = TIPS[i]; }, 1300);
+      }
+    }
+
+    async function postJSON(path, body) {
+      const res = await fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      let data = {};
+      try { data = await res.json(); } catch {}
+      if (!res.ok) {
+        const detail = typeof data.detail === 'string' ? data.detail : (Array.isArray(data.detail) ? data.detail.map(d => d.msg).join('；') : `HTTP ${res.status}`);
+        throw new Error(detail);
+      }
+      return data;
+    }
+
+    els.form.addEventListener('submit', async (ev) => {
+      ev.preventDefault();
+      const url = els.url.value.trim();
+      if (!url) return;
+      if (!els.auth.checked) { showError('請先勾選授權聲明'); return; }
+      clearError(); show(els.results, false); setLoading(true);
+      state.history = []; els.chat.innerHTML = '';
+      try {
+        const data = await postJSON('/api/scan', { url, authorized: true });
+        state.scan = data;
+        renderResult(data);
+        consultAI();
+      } catch (e) {
+        showError(e.message || '檢測失敗');
+      } finally {
+        setLoading(false);
+      }
+    });
+
+    els.rescan.addEventListener('click', () => { window.scrollTo({ top: 0, behavior: 'smooth' }); els.url.focus(); });
+    els.download.addEventListener('click', () => {
+      if (!state.scan) return;
+      const blob = new Blob([JSON.stringify({ scan: state.scan, ai_consult: state.consult }, null, 2)], { type: 'application/json' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `security-report-${state.scan.target.hostname}.json`;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    });
+
+    // ------------------------------------------------------------------
+    // 結果渲染
+    // ------------------------------------------------------------------
+    function animateScore(target) {
+      const start = performance.now(), dur = 800;
+      const step = (now) => {
+        const p = Math.min(1, (now - start) / dur);
+        els.score.textContent = Math.round(target * (1 - Math.pow(1 - p, 3)));
+        if (p < 1) requestAnimationFrame(step);
+      };
+      requestAnimationFrame(step);
+    }
+
+    function renderResult(r) {
+      const g = GRADE[r.grade] || GRADE.F;
+      animateScore(r.score);
+      els.scoreBar.style.width = '0%';
+      els.scoreBar.style.backgroundColor = g.bar;
+      requestAnimationFrame(() => requestAnimationFrame(() => { els.scoreBar.style.width = r.score + '%'; }));
+      els.grade.textContent = r.grade;
+      els.grade.className = `font-serif text-3xl font-bold leading-none ${g.text}`;
+      els.gradeLabel.textContent = r.grade_label;
+      els.statusChip.textContent = `HTTP ${r.target.status_code}`;
+      els.finalUrl.textContent = r.target.final_url;
+      els.finalUrl.href = r.target.final_url;
+      els.reportTime.textContent = fmtTime(r.scanned_at);
+
+      const stack = r.tech?.stack || [];
+      els.tech.innerHTML = stack.length
+        ? stack.map(s => `<span class="font-mono text-[12px] px-2 py-1 border hair rounded-sm text-slate-300">${esc(s)}</span>`).join('')
+        : '<span class="font-mono text-[12px] text-slate-600">未偵測到明確的框架特徵</span>';
+
+      const penalized = r.issues.filter(i => i.penalty > 0);
+      const stat = (v, l) => `<div class="py-3 px-4 first:pl-0"><div class="font-mono text-xl text-slate-100 tabular-nums">${esc(v)}</div><div class="kicker mt-1" style="letter-spacing:.08em">${esc(l)}</div></div>`;
+      els.stats.innerHTML = stat(penalized.length, '扣分項目') + stat(r.passed.length, '通過項目') + stat(`${r.details.total_ms} ms`, `總耗時 · 引擎 ${r.details.engine_ms} ms`);
+
+      const notes = r.details.notes || [];
+      els.notes.innerHTML = notes.map(n => `<div>! ${esc(n)}</div>`).join('');
+      show(els.notes, notes.length > 0);
+
+      els.issuesCount.textContent = penalized.length ? `${penalized.length} 項扣分 · ${r.issues.length - penalized.length} 項建議` : '沒有扣分項目';
+      els.issues.innerHTML = r.issues.length ? r.issues.map((it, idx) => issueRow(it, idx)).join('') :
+        '<div class="py-8 text-sm text-emerald-300">所有硬規則檢查都通過，基礎防線完整。</div>';
+
+      els.passed.innerHTML = r.passed.map(p => `
+        <div class="grid sm:grid-cols-12 gap-2 sm:gap-6 py-3.5 border-b hair">
+          <div class="sm:col-span-4 flex items-start gap-3 text-sm text-slate-200"><span class="font-mono text-emerald-400">✓</span>${esc(p.title)}</div>
+          <div class="sm:col-span-8 font-mono text-[12px] text-slate-500 break-words leading-relaxed">${esc(p.detail)}</div>
+        </div>`).join('');
+
+      renderDetails(r);
+      show(els.results, true);
+      els.results.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    function issueRow(it, idx) {
+      const s = SEV[it.severity] || SEV.info;
+      const n = String(idx + 1).padStart(2, '0');
+      return `
+        <article class="grid md:grid-cols-12 gap-4 md:gap-8 py-7 border-b hair">
+          <div class="md:col-span-3 font-mono text-[11px] space-y-2">
+            <div class="text-slate-600">${n}</div>
+            <div class="flex items-center gap-2 ${s.text}"><span class="w-1.5 h-1.5 rounded-full ${s.dot}"></span>${s.label}</div>
+            <div class="text-slate-500">${esc(it.category)}</div>
+            <div class="text-slate-300 tabular-nums">${it.penalty > 0 ? `−${it.penalty}` : '±0'}</div>
+          </div>
+          <div class="md:col-span-9 min-w-0">
+            <h3 class="text-lg font-medium text-slate-50">${esc(it.title)}</h3>
+            <p class="mt-2 text-sm text-slate-400 leading-relaxed max-w-2xl">${esc(it.description)}</p>
+            ${it.evidence ? `<div class="mt-4 font-mono text-[12px] text-slate-400 border-l-2 hair pl-3 break-all leading-relaxed">${esc(it.evidence)}</div>` : ''}
+            <div class="mt-5 flex flex-wrap items-center gap-4">
+              <button data-copy="issue" data-index="${idx}" class="rounded px-4 py-2 text-sm font-medium bg-indigo-500 hover:bg-indigo-400 text-white">複製修復 Prompt</button>
+              <details class="w-full">
+                <summary class="font-mono text-[12px] text-slate-500 hover:text-slate-300"><span class="chev">›</span> 檢視 Prompt 內容</summary>
+                <pre class="mt-3 font-mono text-[12px] text-slate-300 leading-relaxed border hair rounded p-4 bg-slate-950/60">${esc(it.fix_prompt)}</pre>
+              </details>
+            </div>
+          </div>
+        </article>`;
+    }
+
+    function renderDetails(r) {
+      const chain = r.details.redirect_chain || [];
+      const rows = Object.entries(r.headers || {}).map(([k, v]) => `
+        <tr class="border-t hair"><td class="py-2 pr-6 font-mono text-[12px] text-slate-500 whitespace-nowrap align-top">${esc(k)}</td>
+        <td class="py-2 font-mono text-[12px] break-all ${v ? 'text-slate-300' : 'text-slate-700'}">${v ? esc(v) : '—'}</td></tr>`).join('');
+      els.details.innerHTML = `
+        <div><div class="kicker mb-2">轉址鏈</div>${chain.length ? chain.map(h => `<div class="font-mono text-[12px] break-all text-slate-400">${esc(h.from)} <span class="text-slate-600">→ ${h.status} →</span> ${esc(h.to)}</div>`).join('') : '<div class="font-mono text-[12px] text-slate-600">無轉址</div>'}</div>
+        <div><div class="kicker mb-2">掃描的站內 JS · 最多 2 個</div>${(r.details.js_files_scanned || []).length ? r.details.js_files_scanned.map(u => `<div class="font-mono text-[12px] break-all text-slate-400">${esc(u)}</div>`).join('') : '<div class="font-mono text-[12px] text-slate-600">首頁沒有引用站內 JS，只掃描了 HTML</div>'}</div>
+        <div class="font-mono text-[12px] text-slate-600">${r.details.requests_made} 個 GET 請求 · 首頁 HTML ${(r.details.html_bytes / 1024).toFixed(1)} KB · ${esc(r.scanned_at)}</div>
+        <div><div class="kicker mb-2">安全相關回應標頭</div><div class="overflow-x-auto"><table class="w-full">${rows}</table></div></div>`;
+    }
+
+    // ------------------------------------------------------------------
+    // 顧問
+    // ------------------------------------------------------------------
+    async function consultAI() {
+      if (!state.scan) return;
+      show(els.aiLoading, true); show(els.aiContent, false); show(els.aiRegenerate, false);
+      els.aiProvider.textContent = 'generating…';
+      try {
+        const c = await postJSON('/api/ai-consult', { scan: state.scan });
+        state.consult = c;
+        renderConsult(c);
+      } catch (e) {
+        state.consult = null;
+        els.aiContent.innerHTML = `<div class="text-sm text-rose-300">顧問呼叫失敗：${esc(e.message)}</div>`;
+        els.aiProvider.textContent = 'failed';
+        show(els.aiLoading, false); show(els.aiContent, true);
+      }
+      show(els.aiRegenerate, true);
+    }
+    els.aiRegenerate.addEventListener('click', consultAI);
+
+    function renderConsult(c) {
+      els.aiProvider.textContent = providerLabel(c);
+      const riskText = { '低': 'text-emerald-300', '中': 'text-amber-300', '高': 'text-orange-300', '危急': 'text-rose-300' }[c.risk_level] || 'text-slate-300';
+      els.aiContent.innerHTML = `
+        ${c.note ? `<div class="font-mono text-[11px] text-amber-300/90 border-l-2 border-amber-500/40 pl-3">${esc(c.note)}</div>` : ''}
+        <div class="grid md:grid-cols-12 gap-6">
+          <div class="md:col-span-3 font-mono text-[11px] space-y-2">
+            <div class="text-slate-600">30 秒診斷</div>
+            <div class="${riskText}">風險 · ${esc(c.risk_level || '—')}</div>
+          </div>
+          <div class="md:col-span-9">
+            <p class="font-serif text-lg leading-relaxed text-slate-100">${esc(c.summary)}</p>
+            ${c.stack_note ? `<p class="mt-3 font-mono text-[12px] text-slate-500">${esc(c.stack_note)}</p>` : ''}
+          </div>
+        </div>
+        ${(c.priority_actions || []).length ? `
+        <div class="grid md:grid-cols-12 gap-6 pt-6 rule">
+          <div class="md:col-span-3 font-mono text-[11px] text-slate-600">優先行動</div>
+          <ol class="md:col-span-9 space-y-3">${c.priority_actions.map((a, i) => `<li class="flex gap-4 text-sm text-slate-300"><span class="font-mono text-[12px] text-indigo-300 pt-0.5">${String(i + 1).padStart(2, '0')}</span><span>${esc(a)}</span></li>`).join('')}</ol>
+        </div>` : ''}
+        ${(c.fix_prompts || []).length ? `
+        <div class="grid md:grid-cols-12 gap-6 pt-6 rule">
+          <div class="md:col-span-3 font-mono text-[11px] text-slate-600">架構專屬修復 Prompt</div>
+          <div class="md:col-span-9 border-t hair">${c.fix_prompts.map((fp, i) => `
+            <details class="border-b hair">
+              <summary class="py-3 flex items-center justify-between gap-4">
+                <span class="text-sm text-slate-200"><span class="chev font-mono text-slate-600 mr-2">›</span>${esc(fp.title || fp.issue_id)}</span>
+                <button data-copy="ai" data-index="${i}" class="shrink-0 font-mono text-[11px] px-3 py-1.5 border hair rounded-sm text-slate-300 hover:border-indigo-400 hover:text-indigo-200">COPY</button>
+              </summary>
+              <pre class="pb-4 font-mono text-[12px] text-slate-400 leading-relaxed">${esc(fp.prompt)}</pre>
+            </details>`).join('')}</div>
+        </div>` : ''}`;
+      show(els.aiLoading, false); show(els.aiContent, true);
+    }
+
+    // 極簡 Markdown：程式碼區塊、行內程式碼、粗體、條列、標題降級為粗體行。先做 HTML 逸出，再套樣式。
+    function renderMd(src) {
+      const parts = String(src ?? '').split(/```[a-zA-Z]*\n?/);
+      return parts.map((seg, i) => {
+        if (i % 2 === 1) return `<pre class="my-2 font-mono text-[12px] text-slate-300 border hair rounded p-3 bg-slate-950/60">${esc(seg.replace(/\n$/, ''))}</pre>`;
+        return esc(seg)
+          .replace(/^#{1,6}\s+(.+)$/gm, '<strong class="text-slate-50">$1</strong>')
+          .replace(/\*\*(.+?)\*\*/g, '<strong class="text-slate-50">$1</strong>')
+          .replace(/`([^`\n]+)`/g, '<code class="font-mono text-[12px] px-1 py-0.5 rounded bg-slate-800 text-indigo-200">$1</code>')
+          .replace(/^(\s*)[-*]\s+/gm, '$1· ')
+          .replace(/\n{3,}/g, '\n\n');
+      }).join('');
+    }
+
+    function appendChat(role, text) {
+      const mine = role === 'user';
+      const div = document.createElement('div');
+      div.className = 'grid md:grid-cols-12 gap-3 md:gap-6';
+      div.innerHTML = `<div class="md:col-span-3 font-mono text-[11px] ${mine ? 'text-slate-500' : 'text-indigo-300'}">${mine ? '你' : '顧問'}</div>
+        <div class="md:col-span-9 text-sm leading-relaxed whitespace-pre-wrap ${mine ? 'text-slate-300' : 'text-slate-100'}">${mine ? esc(text) : renderMd(text)}</div>`;
+      els.chat.appendChild(div);
+      div.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      return div;
+    }
+
+    async function sendFollowUp() {
+      const q = els.chatInput.value.trim();
+      if (!q || !state.scan || els.chatSend.disabled) return;
+      els.chatInput.value = ''; els.chatSend.disabled = true;
+      appendChat('user', q);
+      const pending = appendChat('assistant', '…');
+      try {
+        const r = await postJSON('/api/ai-consult', { scan: state.scan, question: q, history: state.history.slice(-10) });
+        pending.remove();
+        appendChat('assistant', r.answer);
+        state.history.push({ role: 'user', content: q }, { role: 'assistant', content: r.answer });
+      } catch (e) {
+        pending.remove();
+        appendChat('assistant', `發生錯誤：${e.message}`);
+      } finally {
+        els.chatSend.disabled = false; els.chatInput.focus();
+      }
+    }
+    els.chatSend.addEventListener('click', sendFollowUp);
+    els.chatInput.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendFollowUp(); } });
+
+    document.addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-copy]');
+      if (!btn) return;
+      e.preventDefault();
+      const i = Number(btn.dataset.index);
+      if (btn.dataset.copy === 'issue' && state.scan) copyText(state.scan.issues[i].fix_prompt);
+      if (btn.dataset.copy === 'ai' && state.consult) copyText(state.consult.fix_prompts[i].prompt);
+    });
+
+    fetch('/api/health').then(r => r.json()).then(h => {
+      const on = h.llm_provider && h.llm_provider !== 'none';
+      els.llmBadge.innerHTML = `<span class="w-1.5 h-1.5 rounded-full ${on ? 'bg-indigo-400' : 'bg-slate-600'}"></span>ADVISOR ${on ? esc(h.llm_model || h.llm_provider).toUpperCase() : 'OFFLINE'}`;
+    }).catch(() => { els.llmBadge.textContent = 'ADVISOR ?'; });
+  </script>
+</body>
+</html>

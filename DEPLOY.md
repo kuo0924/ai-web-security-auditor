@@ -1,0 +1,104 @@
+# 部署到公網
+
+整個產品是一個 FastAPI 服務（後端 API + 靜態的 index.html），放 Render 免費方案就夠，從 GitHub 自動部署。
+
+```
+使用者瀏覽器
+    │  https
+    ▼
+Render（FastAPI，含前端頁面）──▶ 目標網站（被動 GET）
+                              └─▶ Gemini API（AI 顧問）
+```
+
+---
+
+## 步驟一：程式碼在 GitHub
+
+repo：`kuo0924/ai-web-security-auditor`（private）。之後改程式只要：
+
+```bash
+git add -A
+git commit -m "說明"
+git push
+```
+
+Render 會自動重新部署。推之前確認金鑰沒進版控：
+
+```bash
+git log -p --all | grep -E "AQ\.|AIza|sk-[A-Za-z0-9]{30}"
+```
+
+沒有輸出才算安全。`.env` 已在 `.gitignore`。
+
+---
+
+## 步驟二：在 Render 建立服務
+
+1. 到 [render.com](https://render.com) 用 GitHub 帳號登入
+2. **New → Blueprint**，選 `ai-web-security-auditor` 這個 repo。它會讀根目錄的 `render.yaml` 自動建立服務
+3. 系統會要求填一個標了 `sync: false` 的環境變數：
+
+   | 變數 | 值 |
+   |---|---|
+   | `OPENAI_API_KEY` | 你的 Gemini 金鑰（`AQ.` 開頭，和本機 `.env` 裡那把一樣） |
+
+   其他變數（端點、模型清單、限流數字）都已寫在 `render.yaml`，不用動。
+4. 按 Apply，等 2～3 分鐘建置完成
+5. 拿到類似 `https://ai-web-security-auditor.onrender.com` 的網址
+6. 開 `https://<你的網址>/api/health` 確認：
+   - `"llm_provider": "openai"`
+   - `"llm_model": "gemini-3.5-flash"`
+   - `"llm_budget": {"used_today": 0, "daily_limit": 300}`
+7. 開首頁掃一次 `httpbin.org`，看 AI 顧問區有沒有正常生成
+
+---
+
+## 步驟三（建議）：讓它真的「隨時」都在
+
+Render 免費方案在 15 分鐘沒人用之後會休眠，下一個人打開要等 30～60 秒冷啟動。
+免費解法是讓外部服務每 10 分鐘敲一下：
+
+1. 到 [uptimerobot.com](https://uptimerobot.com) 註冊免費帳號（或 [cron-job.org](https://cron-job.org)）
+2. 新增 HTTP 監控，網址填 `https://<你的網址>/api/health`，間隔 10 分鐘
+3. 順便得到當機通知
+
+免費方案每月 750 小時實例時數，一個服務全月開著是 720 小時，剛好夠。
+
+不想靠這招的話，Render 的 Starter 方案（每月 7 美元）不會休眠。
+
+---
+
+## 上線後要知道的事
+
+### 額度與費用
+
+- AI 顧問用的是你的 Gemini 金鑰，和排班表辨識專案共用同一把、同一份額度。
+- `LLM_DAILY_BUDGET=300`：全站每天最多 300 次 AI 呼叫，用完自動降級成規則引擎的靜態指引，隔天 UTC 0 點恢復。前端會顯示「AI 顧問目前無法使用」的提示，掃描本身不受影響。
+- 每次 AI 顧問呼叫約 3,000～6,000 tokens。以 gemini-3.5-flash 的定價估，300 次一天最多幾塊美金；流量小的話遠低於此。
+- 模型清單會在 429 / 5xx 時自動換下一個，免費層各模型日額度用完也不會整站失效。
+- 想調數字：Render 後台 → 該服務 → Environment，改完會自動重啟。
+
+### 濫用與法律責任
+
+- 工具只送被動 GET，但它現在是**你**在對外提供服務。有人拿它去掃不該掃的網站，被掃方看到的來源 IP 是 Render 的。
+- 已有的保護：授權勾選、每 IP 每分鐘 3 次掃描、內網位址拒絕、每次掃描最多約 9 個請求。
+- 每次掃描的 log 都有「來源 IP → 目標網域」，在 Render 後台的 Logs 分頁可查；被投訴時拿得出紀錄。
+- 建議在首頁底部加上聯絡方式（Email），讓被掃方有管道找你。
+
+### 運維
+
+- 看 log：Render 後台 → 服務 → Logs。中文 log 已改 UTF-8 不會亂碼。
+- 改知識庫：編輯 `knowledge/*.md` 後 push，會自動重新部署；或對線上服務 `POST /api/knowledge/reload`。
+- 限流與每日額度存在記憶體，服務重啟就歸零；免費方案休眠喚醒也算重啟。這對單一服務、小流量沒問題，流量大了再換 Redis。
+- 自訂網域：Render 後台 → Settings → Custom Domains，加 CNAME 即可，HTTPS 自動配。
+
+---
+
+## 本機與線上的差別
+
+| | 本機 | Render |
+|---|---|---|
+| 設定來源 | `.env` | Render 後台環境變數（`render.yaml` + 手動填的金鑰） |
+| 網址 | http://127.0.0.1:8000 | https://xxx.onrender.com |
+| TRUST_PROXY | 0 | 1 |
+| 休眠 | 無 | 免費方案 15 分鐘無人用即休眠 |

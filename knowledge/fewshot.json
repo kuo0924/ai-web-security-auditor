@@ -1,0 +1,38 @@
+[
+  {
+    "input": {
+      "final_url": "https://demo-app.vercel.app/",
+      "score": 50,
+      "grade": "C",
+      "tech": {"stack": ["Next.js", "Vercel"], "platform": "nextjs"},
+      "issues": [
+        {"id": "csp", "title": "缺少 Content-Security-Policy (CSP)", "severity": "high", "penalty": 20, "evidence": "回應中沒有 Content-Security-Policy 標頭"},
+        {"id": "hsts", "title": "缺少 Strict-Transport-Security (HSTS)", "severity": "medium", "penalty": 15, "evidence": "回應中沒有 Strict-Transport-Security 標頭"},
+        {"id": "x_frame_options", "title": "缺少 X-Frame-Options", "severity": "medium", "penalty": 15, "evidence": "沒有 X-Frame-Options 標頭"}
+      ],
+      "passed": ["https", "x_content_type_options", "secret_leak", "env_exposed", "git_exposed"]
+    },
+    "output": {
+      "summary": "你的網站已經有 HTTPS，也沒有金鑰外洩或檔案裸露這種會馬上出事的問題，所以不用慌。但目前少了三道基本防線：CSP、HSTS 和 X-Frame-Options，意思是一旦頁面上任何地方出現 XSS 漏洞，或使用者被誘導到假冒頁面，瀏覽器不會幫你擋。好消息是 Next.js 在 next.config.js 一次就能補齊，大約 10 分鐘。",
+      "risk_level": "中",
+      "priority_actions": [
+        "在 next.config.js 的 headers() 一次加入 HSTS、X-Frame-Options、X-Content-Type-Options、Referrer-Policy",
+        "先用 Content-Security-Policy-Report-Only 上線 CSP，觀察 console 沒有違規後再切正式",
+        "部署後用 curl -I 確認標頭都有出現"
+      ],
+      "fix_prompts": [
+        {
+          "issue_id": "csp",
+          "title": "為 Next.js 加入 CSP（先 Report-Only）",
+          "prompt": "你是我的資深資安工程師。這是一個部署在 Vercel 的 Next.js 專案。請先讀取 next.config.js（或 next.config.mjs）與 app/layout.tsx，列出目前用到的第三方腳本、字型、圖片與 API 網域，然後在 next.config.js 的 async headers() 中加入 Content-Security-Policy-Report-Only 標頭，起手式為 default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'，並把盤點到的網域加進對應指令。若專案有 inline script，請改用 middleware.ts 產生 nonce 的做法而不是 'unsafe-inline'。給我完整檔案內容、逐行說明，並告訴我如何在瀏覽器 console 確認沒有違規後改成正式的 Content-Security-Policy。不要改動其他檔案。"
+        },
+        {
+          "issue_id": "hsts",
+          "title": "補齊 HSTS 與 X-Frame-Options 等基本標頭",
+          "prompt": "你是我的資深資安工程師。這是一個部署在 Vercel 的 Next.js 專案。請先讀取 next.config.js 確認是否已有 headers() 設定，然後在 headers() 中對 source '/(.*)' 加入：Strict-Transport-Security: max-age=31536000; includeSubDomains、X-Frame-Options: DENY、X-Content-Type-Options: nosniff、Referrer-Policy: strict-origin-when-cross-origin、Permissions-Policy: camera=(), microphone=(), geolocation=()。請保留既有設定，給我完整檔案內容與逐行說明，提醒我 HSTS 生效後一年內所有子網域都會被強制 HTTPS 的影響，並告訴我部署後用 curl -I 驗證的指令。"
+        }
+      ],
+      "stack_note": "從 /_next/ 路徑與 x-vercel-id 標頭判斷是 Next.js on Vercel，但無法確認是 App Router 還是 Pages Router，兩者的 headers() 寫法相同。"
+    }
+  }
+]

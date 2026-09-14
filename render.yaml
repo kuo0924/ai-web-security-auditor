@@ -1,0 +1,38 @@
+# Render Blueprint。在 Render 上選 New → Blueprint 並指向這個 repo 即可。
+# 若偏好手動建立 Web Service，照著下面的 buildCommand / startCommand / envVars 填也一樣。
+services:
+  - type: web
+    name: ai-web-security-auditor
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    # 單一 worker：限流計數與每日 AI 額度都存在行程記憶體，多 worker 會各算各的
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT --workers 1
+    healthCheckPath: /api/health
+    envVars:
+      # 金鑰在 Render 後台手動填，不要寫進這個檔案（它會進版控）
+      # 用 Gemini 金鑰（AQ. 開頭）或 OpenAI 金鑰（sk- 開頭）都可以
+      - key: OPENAI_API_KEY
+        sync: false
+      # Gemini 的 OpenAI 相容端點；改用 OpenAI 官方金鑰時把這行刪掉或改成 https://api.openai.com/v1
+      - key: OPENAI_BASE_URL
+        value: https://generativelanguage.googleapis.com/v1beta/openai
+      # 逗號分隔，由左到右依序嘗試，遇到 429 / 5xx / 逾時自動換下一個。
+      # Gemini 免費層的日額度是綁模型的，只寫一個模型會在某個時間點整站降級。
+      - key: OPENAI_MODEL
+        value: gemini-3.5-flash,gemini-3.5-flash-lite,gemini-3.6-flash,gemini-3.1-flash-lite
+      - key: LLM_PROVIDER
+        value: openai
+      # Render 在應用前面有一層反向代理，不設這個的話所有人會被算成同一個 IP，限流會集體誤傷
+      - key: TRUST_PROXY
+        value: "1"
+      # 每個來源 IP 的限制
+      - key: SCAN_RATE_LIMIT
+        value: "3"
+      - key: CONSULT_RATE_LIMIT
+        value: "5"
+      - key: CONSULT_HOURLY_LIMIT
+        value: "30"
+      # 全站每日 AI 顧問呼叫上限，用完自動降級成規則模式，隔天恢復；保護你的金鑰額度
+      - key: LLM_DAILY_BUDGET
+        value: "300"
