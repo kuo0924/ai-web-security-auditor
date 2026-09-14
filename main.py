@@ -78,7 +78,17 @@ OPENAI_MODEL = OPENAI_MODELS[0]
 OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1").rstrip("/")
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "").strip()
 ANTHROPIC_MODEL = os.getenv("ANTHROPIC_MODEL", "claude-sonnet-5")
-LLM_PROVIDER = os.getenv("LLM_PROVIDER", "auto").lower()  # auto | openai | anthropic | none
+ANTHROPIC_EFFORT = os.getenv("ANTHROPIC_EFFORT", "medium")  # low | medium | high | xhigh | max
+# 供應商順序，逗號分隔：前面的失敗（額度、429、5xx、拒答）就換下一個；auto = anthropic,openai（只保留有金鑰的）
+LLM_PROVIDER = os.getenv("LLM_PROVIDER", "auto").lower()
+LLM_DAILY_BUDGET_USD = float(os.getenv("LLM_DAILY_BUDGET_USD", "2"))  # Claude 每日估算費用上限（美元），0 = 不限制
+# 每百萬 token 的定價（輸入 / 輸出 / 快取讀取 / 快取寫入），用來估算 Claude 的花費；查不到的模型以 Sonnet 5 計
+CLAUDE_PRICING = {
+    "claude-sonnet-5": (2.0, 10.0, 0.2, 2.5),
+    "claude-opus-5": (5.0, 25.0, 0.5, 6.25),
+    "claude-haiku-4-5": (1.0, 5.0, 0.1, 1.25),
+    "claude-fable-5-1": (10.0, 50.0, 1.0, 12.5),
+}
 LLM_TIMEOUT = httpx.Timeout(90.0, connect=10.0)
 LLM_MAX_TOKENS = int(os.getenv("LLM_MAX_TOKENS", "6000"))  # 思考型模型的思考 token 也算在內，要留寬
 # Gemini 3.x 預設會花大量思考 token，透過相容端點送 reasoning_effort=low 壓低；OpenAI 非推理模型不接受此參數故預設留空
@@ -157,31 +167,45 @@ consult_hourly_limiter = SlidingWindowLimiter(CONSULT_HOURLY_LIMIT, 3600)
 
 
 class DailyBudget:
-    """全站每日 LLM 呼叫計數（UTC 日界），保護金鑰額度不被公開流量燒光。"""
+    """全站每日 LLM 用量（UTC 日界）：呼叫次數 + Claude 估算金額，保護金鑰額度不被公開流量燒光。"""
 
-    def __init__(self, limit: int) -> None:
+    def __init__(self, limit: int, usd_limit: float) -> None:
         self.limit = limit
+        self.usd_limit = usd_limit
         self.day: Any = None
         self.used = 0
+        self.usd = 0.0
 
     def _roll(self) -> None:
         today = datetime.now(timezone.utc).date()
         if self.day != today:
-            self.day, self.used = today, 0
+            self.day, self.used, self.usd = today, 0, 0.0
 
     def take(self) -> bool:
+        """一次 LLM 呼叫（不分供應商）。"""
         self._roll()
         if self.limit > 0 and self.used >= self.limit:
             return False
         self.used += 1
         return True
 
-    def status(self) -> dict[str, int]:
+    def usd_available(self) -> bool:
         self._roll()
-        return {"used_today": self.used, "daily_limit": self.limit}
+        return self.usd_limit <= 0 or self.usd < self.usd_limit
+
+    def record_usd(self, amount: float) -> None:
+        self._roll()
+        self.usd += amount
+
+    def status(self) -> dict[str, Any]:
+        self._roll()
+        return {
+            "used_today": self.used, "daily_limit": self.limit,
+            "claude_usd_today": round(self.usd, 4), "claude_usd_limit": self.usd_limit,
+        }
 
 
-llm_budget = DailyBudget(LLM_DAILY_BUDGET)
+llm_budget = DailyBudget(LLM_DAILY_BUDGET, LLM_DAILY_BUDGET_USD)
 
 
 def client_ip(request: Request) -> str:
@@ -1115,28 +1139,99 @@ FOLLOWUP_SYSTEM_PROMPT = """你是一位白話且接地氣的 AI 資安顧問，
 - 格式：只用段落、「- 」條列、`行內程式碼` 與 ``` 程式碼區塊；不要用 # 標題、不要用表情符號、粗體最多一兩處。"""
 
 
-def pick_provider() -> str:
+def configured_providers() -> list[str]:
+    """依 LLM_PROVIDER 的順序回傳有金鑰的供應商；空清單代表 AI 顧問未啟用。"""
+    keys = {"anthropic": ANTHROPIC_API_KEY, "openai": OPENAI_API_KEY}
     if LLM_PROVIDER == "none":
-        return "none"
-    if LLM_PROVIDER == "openai":
-        return "openai" if OPENAI_API_KEY else "none"
-    if LLM_PROVIDER == "anthropic":
-        return "anthropic" if ANTHROPIC_API_KEY else "none"
-    if OPENAI_API_KEY:
-        return "openai"
-    if ANTHROPIC_API_KEY:
-        return "anthropic"
-    return "none"
+        return []
+    order = ["anthropic", "openai"] if LLM_PROVIDER == "auto" else [p.strip() for p in LLM_PROVIDER.split(",")]
+    return [p for p in order if p in keys and keys[p]]
 
 
-async def llm_complete(system: str, messages: list[dict[str, str]], *, json_mode: bool, max_tokens: int = 2000) -> tuple[str, dict[str, str]]:
-    provider = pick_provider()
-    if provider == "none":
+def pick_provider() -> str:
+    providers = configured_providers()
+    return providers[0] if providers else "none"
+
+
+class ProviderFailed(Exception):
+    """這個供應商這次不行（額度、限流、拒答、錯誤），換下一個。"""
+
+
+_anthropic_client: Any = None
+
+
+def anthropic_client() -> Any:
+    global _anthropic_client
+    if _anthropic_client is None:
+        import anthropic
+
+        _anthropic_client = anthropic.AsyncAnthropic(api_key=ANTHROPIC_API_KEY, max_retries=1, timeout=90.0)
+    return _anthropic_client
+
+
+def estimate_claude_cost(model: str, usage: Any) -> float:
+    price = next((v for k, v in CLAUDE_PRICING.items() if model.startswith(k)), CLAUDE_PRICING["claude-sonnet-5"])
+    tokens = (
+        getattr(usage, "input_tokens", 0) or 0,
+        getattr(usage, "output_tokens", 0) or 0,
+        getattr(usage, "cache_read_input_tokens", 0) or 0,
+        getattr(usage, "cache_creation_input_tokens", 0) or 0,
+    )
+    return sum(t * p for t, p in zip(tokens, price)) / 1_000_000
+
+
+async def _complete_anthropic(system_blocks: list[str], messages: list[dict[str, str]], json_schema: dict[str, Any] | None, max_tokens: int) -> tuple[str, dict[str, Any]]:
+    if not llm_budget.usd_available():
+        raise ProviderFailed(f"Claude 今日估算費用已達上限 {LLM_DAILY_BUDGET_USD} 美元")
+    # 第一塊是固定的系統提示詞 + few-shot，加 cache_control 讓後續請求以一成價讀取；可變的知識庫內容放第二塊
+    system = [{"type": "text", "text": system_blocks[0], "cache_control": {"type": "ephemeral"}}]
+    system += [{"type": "text", "text": b} for b in system_blocks[1:] if b]
+    kwargs: dict[str, Any] = {
+        "model": ANTHROPIC_MODEL,
+        "max_tokens": max_tokens,
+        "system": system,
+        "messages": messages,
+        "output_config": {"effort": ANTHROPIC_EFFORT},
+    }
+    if json_schema is not None:
+        kwargs["output_config"]["format"] = {"type": "json_schema", "schema": json_schema}
+    resp = await anthropic_client().messages.create(**kwargs)
+    cost = estimate_claude_cost(ANTHROPIC_MODEL, resp.usage)
+    llm_budget.record_usd(cost)
+    if resp.stop_reason == "refusal":
+        raise ProviderFailed("Claude 拒絕回答此請求")
+    if resp.stop_reason == "max_tokens":
+        log.warning("Claude 輸出達到 max_tokens=%d 上限，內容可能被截斷", max_tokens)
+    text = "".join(block.text for block in resp.content if block.type == "text")
+    log.info("claude %s 估算 $%.4f（今日累計 $%.4f）", ANTHROPIC_MODEL, cost, llm_budget.usd)
+    return text, {"provider": "anthropic", "model": ANTHROPIC_MODEL, "finish_reason": resp.stop_reason, "usd": round(cost, 5)}
+
+
+async def llm_complete(
+    system: str | list[str], messages: list[dict[str, str]], *, json_schema: dict[str, Any] | None = None, max_tokens: int = 2000
+) -> tuple[str, dict[str, Any]]:
+    """依序嘗試已設定的供應商；全部失敗才拋出最後一個錯誤。"""
+    providers = configured_providers()
+    if not providers:
         raise LLMUnavailable("未設定 OPENAI_API_KEY 或 ANTHROPIC_API_KEY")
     if not llm_budget.take():
         raise LLMBudgetExceeded(f"今日 AI 顧問額度（{LLM_DAILY_BUDGET} 次）已用完，明天會自動恢復")
+    system_blocks = [system] if isinstance(system, str) else [b for b in system if b]
+    last_exc: Exception | None = None
+    for provider in providers:
+        try:
+            if provider == "anthropic":
+                return await _complete_anthropic(system_blocks, messages, json_schema, max_tokens)
+            return await _complete_openai_compatible("\n\n".join(system_blocks), messages, json_schema is not None, max_tokens)
+        except Exception as exc:  # 任何錯誤都換下一個供應商，最後一個才往上拋
+            last_exc = exc
+            log.warning("供應商 %s 失敗：%s: %s", provider, type(exc).__name__, str(exc)[:200])
+    raise last_exc or LLMUnavailable("所有供應商都無法使用")
+
+
+async def _complete_openai_compatible(system: str, messages: list[dict[str, str]], json_mode: bool, max_tokens: int) -> tuple[str, dict[str, Any]]:
     async with httpx.AsyncClient(timeout=LLM_TIMEOUT) as client:
-        if provider == "openai":
+        if True:
             last_exc: Exception | None = None
             for model in OPENAI_MODELS:
                 payload: dict[str, Any] = {
@@ -1176,18 +1271,6 @@ async def llm_complete(system: str, messages: list[dict[str, str]], *, json_mode
                     log.warning("LLM 輸出達到 max_tokens=%d 上限，內容可能被截斷", max_tokens)
                 return text, {"provider": "openai", "model": model, "finish_reason": choice.get("finish_reason")}
             raise last_exc or LLMUnavailable("所有模型都無法使用")
-        payload = {"model": ANTHROPIC_MODEL, "max_tokens": max_tokens, "system": system, "messages": messages}
-        r = await client.post(
-            "https://api.anthropic.com/v1/messages",
-            headers={"x-api-key": ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01"},
-            json=payload,
-        )
-        r.raise_for_status()
-        data = r.json()
-        text = "".join(block.get("text", "") for block in data.get("content", []) if block.get("type") == "text")
-        if data.get("stop_reason") == "max_tokens":
-            log.warning("LLM 輸出達到 max_tokens=%d 上限，內容可能被截斷", max_tokens)
-        return text, {"provider": "anthropic", "model": ANTHROPIC_MODEL, "finish_reason": data.get("stop_reason")}
 
 
 def extract_json(text: str) -> dict[str, Any]:
@@ -1302,23 +1385,50 @@ def _collapse_turns(turns: list[dict[str, str]]) -> list[dict[str, str]]:
     return out
 
 
+CONSULT_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "properties": {
+        "summary": {"type": "string"},
+        "risk_level": {"type": "string", "enum": ["低", "中", "高", "危急"]},
+        "priority_actions": {"type": "array", "items": {"type": "string"}},
+        "fix_prompts": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "issue_ids": {"type": "array", "items": {"type": "string"}},
+                    "title": {"type": "string"},
+                    "prompt": {"type": "string"},
+                },
+                "required": ["issue_ids", "title", "prompt"],
+                "additionalProperties": False,
+            },
+        },
+        "stack_note": {"type": "string"},
+    },
+    "required": ["summary", "risk_level", "priority_actions", "fix_prompts", "stack_note"],
+    "additionalProperties": False,
+}
+
+
 async def generate_consult(scan: dict[str, Any]) -> dict[str, Any]:
     digest = scan_digest(scan)
     context = KB.retrieve(digest["tech"], [i["id"] for i in digest["issues"]])
-    system = "\n\n".join(p for p in (SYSTEM_PROMPT, KB.fewshot_block(), context) if p)
+    # 固定內容一塊（可快取）、依站而異的知識庫一塊
+    system = ["\n\n".join(p for p in (SYSTEM_PROMPT, KB.fewshot_block()) if p), context]
     user = "以下是網站資安體檢數據（JSON）：\n" + json.dumps(digest, ensure_ascii=False, indent=2)
     try:
-        text, meta = await llm_complete(system, [{"role": "user", "content": user}], json_mode=True, max_tokens=LLM_MAX_TOKENS)
+        text, meta = await llm_complete(system, [{"role": "user", "content": user}], json_schema=CONSULT_SCHEMA, max_tokens=LLM_MAX_TOKENS)
         try:
             data = extract_json(text)
         except (json.JSONDecodeError, ValueError):
             # 多半是輸出過長被截斷：帶精簡指令重試一次
             log.warning("LLM 回傳的 JSON 無法解析（%d 字元），改用精簡指令重試", len(text))
             retry_user = user + "\n\n注意：上一次輸出因過長被截斷。請精簡：summary 三句內、每個 prompt 250 字內、fix_prompts 最多 4 個。"
-            text, meta = await llm_complete(system, [{"role": "user", "content": retry_user}], json_mode=True, max_tokens=LLM_MAX_TOKENS)
+            text, meta = await llm_complete(system, [{"role": "user", "content": retry_user}], json_schema=CONSULT_SCHEMA, max_tokens=LLM_MAX_TOKENS)
             data = extract_json(text)
         result = normalize_consult(data, scan)
-        result.update({"mode": "llm", "provider": meta["provider"], "model": meta["model"], "note": None})
+        result.update({"mode": "llm", "provider": meta["provider"], "model": meta["model"], "usd": meta.get("usd"), "note": None})
         return result
     except LLMUnavailable as exc:
         return fallback_consult(scan, digest, f"AI 顧問目前無法使用（{exc}），以下為規則引擎產生的靜態修復指引")
@@ -1330,7 +1440,7 @@ async def generate_consult(scan: dict[str, Any]) -> dict[str, Any]:
 async def answer_followup(scan: dict[str, Any], question: str, history: list[dict[str, str]]) -> dict[str, Any]:
     digest = scan_digest(scan)
     context = KB.retrieve(digest["tech"], [i["id"] for i in digest["issues"]])
-    system = "\n\n".join(p for p in (FOLLOWUP_SYSTEM_PROMPT, context) if p)
+    system = [FOLLOWUP_SYSTEM_PROMPT, context]
     turns = [
         {"role": "user", "content": "這是我的網站體檢數據（JSON）：\n" + json.dumps(digest, ensure_ascii=False)},
         {"role": "assistant", "content": "了解，我已看過你的體檢數據。你想先了解哪一項？"},
@@ -1338,7 +1448,7 @@ async def answer_followup(scan: dict[str, Any], question: str, history: list[dic
         {"role": "user", "content": question},
     ]
     try:
-        text, meta = await llm_complete(system, _collapse_turns(turns), json_mode=False, max_tokens=min(LLM_MAX_TOKENS, 3000))
+        text, meta = await llm_complete(system, _collapse_turns(turns), max_tokens=min(LLM_MAX_TOKENS, 3000))
         return {"mode": "llm", "provider": meta["provider"], "model": meta["model"], "answer": text.strip()}
     except LLMUnavailable as exc:
         return {
@@ -1406,12 +1516,14 @@ async def index():
 
 @app.get("/api/health")
 async def health():
-    provider = pick_provider()
+    providers = configured_providers()
+    provider = providers[0] if providers else "none"
     return {
         "ok": True,
         "llm_provider": provider,
+        "llm_providers_order": providers,
         "llm_model": {"openai": OPENAI_MODEL, "anthropic": ANTHROPIC_MODEL}.get(provider),
-        "llm_models_fallback": OPENAI_MODELS if provider == "openai" else [],
+        "llm_models_fallback": (["anthropic:" + ANTHROPIC_MODEL] if "anthropic" in providers else []) + (["openai:" + m for m in OPENAI_MODELS] if "openai" in providers else []),
         "llm_budget": llm_budget.status(),
         "knowledge_docs": len(KB.docs),
         "scan_rate_limit_per_min": SCAN_RATE_LIMIT[0],

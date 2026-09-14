@@ -96,8 +96,11 @@ uvicorn main:app --reload --port 8000
 
 | 變數 | 預設 | 作用 |
 |---|---|---|
+| `LLM_PROVIDER` | auto | 供應商順序，例如 `anthropic,openai`：前者失敗（額度、429、拒答）換後者，全掛才降級成規則模式 |
+| `ANTHROPIC_MODEL` / `ANTHROPIC_EFFORT` | claude-sonnet-5 / medium | Claude 模型與思考深度（官方 SDK，結構化輸出 + prompt caching） |
+| `LLM_DAILY_BUDGET_USD` | 2 | Claude 每日估算費用上限（美元），達到後改用下一個供應商 |
 | `OPENAI_MODEL` | 逗號分隔清單 | 429 / 5xx / 逾時時依序換下一個模型 |
-| `LLM_DAILY_BUDGET` | 300 | 全站每日 AI 呼叫上限，用完降級成規則模式 |
+| `LLM_DAILY_BUDGET` | 300 | 全站每日 AI 呼叫上限（不分供應商），用完降級成規則模式 |
 | `CONSULT_RATE_LIMIT` / `CONSULT_HOURLY_LIMIT` | 10 / 30 | 每 IP 每分鐘、每小時的 AI 顧問上限 |
 | `SCAN_RATE_LIMIT` | 3 | 每 IP 每分鐘掃描上限 |
 | `TRUST_PROXY` | 0 | 反向代理後設 1，從 X-Forwarded-For 最右側取真實 IP |

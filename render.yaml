@@ -10,8 +10,18 @@ services:
     startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT --workers 1
     healthCheckPath: /api/health
     envVars:
-      # 金鑰在 Render 後台手動填，不要寫進這個檔案（它會進版控）
-      # 用 Gemini 金鑰（AQ. 開頭）或 OpenAI 金鑰（sk- 開頭）都可以
+      # 兩把金鑰都在 Render 後台手動填，不要寫進這個檔案（它會進版控）
+      # Claude 為主（品質好）、Gemini 為備援（Claude 額度用完、429、拒答時接手）
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: ANTHROPIC_MODEL
+        value: claude-sonnet-5
+      - key: ANTHROPIC_EFFORT
+        value: medium
+      # Claude 每日估算費用上限（美元）；達到後自動改用 Gemini，隔天 UTC 0 點恢復
+      - key: LLM_DAILY_BUDGET_USD
+        value: "2"
+      # Gemini 金鑰（AQ. 開頭）填在這裡；沒填就只用 Claude
       - key: OPENAI_API_KEY
         sync: false
       # Gemini 的 OpenAI 相容端點；改用 OpenAI 官方金鑰時把這行刪掉或改成 https://api.openai.com/v1
@@ -22,7 +32,7 @@ services:
       - key: OPENAI_MODEL
         value: gemini-3.5-flash,gemini-3.5-flash-lite,gemini-3.6-flash,gemini-3.1-flash-lite
       - key: LLM_PROVIDER
-        value: openai
+        value: anthropic,openai
       # Render 在應用前面有一層反向代理，不設這個的話所有人會被算成同一個 IP，限流會集體誤傷
       - key: TRUST_PROXY
         value: "1"

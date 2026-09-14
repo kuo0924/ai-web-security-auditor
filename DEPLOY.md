@@ -36,19 +36,20 @@ git log -p --all | grep -E "AQ\.|AIza|sk-[A-Za-z0-9]{30}"
 
 1. 到 [render.com](https://render.com) 用 GitHub 帳號登入
 2. **New → Blueprint**，選 `ai-web-security-auditor` 這個 repo。它會讀根目錄的 `render.yaml` 自動建立服務
-3. 系統會要求填一個標了 `sync: false` 的環境變數：
+3. 系統會要求填兩個標了 `sync: false` 的環境變數：
 
    | 變數 | 值 |
    |---|---|
-   | `OPENAI_API_KEY` | 你的 Gemini 金鑰（`AQ.` 開頭，和本機 `.env` 裡那把一樣） |
+   | `ANTHROPIC_API_KEY` | 你的 Claude 金鑰（`sk-ant-` 開頭，在 console.anthropic.com → API Keys 建立） |
+   | `OPENAI_API_KEY` | 你的 Gemini 金鑰（`AQ.` 開頭，和本機 `.env` 裡那把一樣），當 Claude 的備援 |
 
-   其他變數（端點、模型清單、限流數字）都已寫在 `render.yaml`，不用動。
+   其他變數（模型、effort、每日金額上限、限流數字）都已寫在 `render.yaml`，不用動。
 4. 按 Apply，等 2～3 分鐘建置完成
 5. 拿到類似 `https://ai-web-security-auditor.onrender.com` 的網址
 6. 開 `https://<你的網址>/api/health` 確認：
-   - `"llm_provider": "openai"`
-   - `"llm_model": "gemini-3.5-flash"`
-   - `"llm_budget": {"used_today": 0, "daily_limit": 300}`
+   - `"llm_providers_order": ["anthropic", "openai"]`
+   - `"llm_model": "claude-sonnet-5"`
+   - `"llm_budget": {"claude_usd_today": 0, "claude_usd_limit": 2, ...}`
 7. 開首頁掃一次 `httpbin.org`，看 AI 顧問區有沒有正常生成
 
 ---
@@ -72,11 +73,11 @@ Render 免費方案在 15 分鐘沒人用之後會休眠，下一個人打開要
 
 ### 額度與費用
 
-- AI 顧問用的是你的 Gemini 金鑰，和排班表辨識專案共用同一把、同一份額度。
-- `LLM_DAILY_BUDGET=300`：全站每天最多 300 次 AI 呼叫，用完自動降級成規則引擎的靜態指引，隔天 UTC 0 點恢復。前端會顯示「AI 顧問目前無法使用」的提示，掃描本身不受影響。
-- 每次 AI 顧問呼叫約 3,000～6,000 tokens。以 gemini-3.5-flash 的定價估，300 次一天最多幾塊美金；流量小的話遠低於此。
-- 模型清單會在 429 / 5xx 時自動換下一個，免費層各模型日額度用完也不會整站失效。
-- 想調數字：Render 後台 → 該服務 → Environment，改完會自動重啟。
+- AI 顧問以 Claude Sonnet 5 為主：按用量計費，沒人用就是 0 元。每次顧問呼叫約 0.02～0.03 美元，系統提示詞有開 prompt caching，同一天內重複的部分只收一成價。
+- `LLM_DAILY_BUDGET_USD=2`：Claude 當天估算費用達 2 美元就自動改用 Gemini，隔天 UTC 0 點恢復。這是保險絲，不是每天固定扣的錢。估算用 `/api/health` 的 `claude_usd_today` 看，實際帳單以 Anthropic Console 為準。
+- Gemini 是備援：Claude 額度用完、429、5xx 或拒答時接手。Gemini 金鑰和排班表辨識專案共用同一把、同一份額度；模型清單會在 429 / 5xx 時自動換下一個。
+- `LLM_DAILY_BUDGET=300`：不分供應商，全站每天最多 300 次 AI 呼叫，用完降級成規則引擎的靜態指引。前端會顯示「AI 顧問目前無法使用」，掃描本身不受影響。
+- 想調數字：Render 後台 → 該服務 → Environment，改完會自動重啟。`ANTHROPIC_EFFORT` 從 medium 降到 low 可再省，升到 high 更仔細但更貴。
 
 ### 濫用與法律責任
 
