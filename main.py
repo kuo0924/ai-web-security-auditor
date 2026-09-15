@@ -2123,6 +2123,12 @@ async def index():
     return FileResponse(INDEX_HTML, media_type="text/html; charset=utf-8")
 
 
+@app.api_route("/stats", methods=["GET", "HEAD"])
+async def stats_page():
+    """給人看的使用量頁面（資料來自 /api/stats）。"""
+    return FileResponse(BASE_DIR / "stats.html", media_type="text/html; charset=utf-8")
+
+
 @app.api_route("/api/health", methods=["GET", "HEAD"])  # 監控服務常用 HEAD，只開 GET 會回 405 被判成掛掉
 async def health(request: Request):
     ua = request.headers.get("user-agent", "")

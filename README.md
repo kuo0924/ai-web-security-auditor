@@ -97,6 +97,7 @@ uvicorn main:app --reload --port 8000
 | `POST` | `/api/scan` | `{"url": "...", "authorized": true}` → 評分報告 JSON |
 | `POST` | `/api/ai-consult` | `{"scan": <報告>}` → 白話總評 + 修復 Prompt；加上 `"question"` 與 `"history"` 即為追問 |
 | `GET` | `/api/health` | 目前 LLM 供應商、每日額度用量、金鑰長度（供部署確認） |
+| `GET` | `/stats` | 給人看的使用量頁面 |
 | `GET` | `/api/stats` | 使用量彙總：今日與啟動以來的掃描數、AI 顧問數、不重複 IP、評等分布、常見平台、最近 7 天每日數。不含目標網址。設 `STATS_TOKEN` 後需帶 `?token=` |
 | `GET` | `/api/whoami` | 回報呼叫者被辨識成哪個 IP（確認反向代理設定） |
 | `POST` | `/api/knowledge/reload` | 編輯 `knowledge/` 後不重啟即生效 |

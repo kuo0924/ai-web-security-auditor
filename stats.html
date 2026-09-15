@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="zh-Hant" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>使用量統計 · 網站安全體檢儀</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@600;700&family=Noto+Sans+TC:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = { darkMode: 'class', theme: { extend: { fontFamily: { sans: ['Noto Sans TC', 'system-ui', 'sans-serif'], serif: ['Noto Serif TC', 'Georgia', 'serif'], mono: ['IBM Plex Mono', 'ui-monospace', 'Consolas', 'monospace'] } } } };
+  </script>
+  <style>
+    html { background: #020617; }
+    body { background-color: #020617; background-image: radial-gradient(rgba(148, 163, 184, .11) 1px, transparent 1px); background-size: 22px 22px; color: #e2e8f0; }
+    .hair { border-color: #1e293b; }
+    .kicker { font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: #64748b; }
+    .bar { height: 6px; background: #818cf8; }
+  </style>
+</head>
+<body class="min-h-screen antialiased font-sans">
+  <header class="border-b hair">
+    <div class="max-w-5xl mx-auto px-5 h-14 flex items-center justify-between">
+      <div class="flex items-baseline gap-3">
+        <a href="/" class="font-serif text-lg font-bold text-slate-50 hover:text-indigo-200">網站安全體檢儀</a>
+        <span class="kicker hidden sm:inline">Usage · Stats</span>
+      </div>
+      <div class="font-mono text-[11px] text-slate-400"><span id="uptime">…</span></div>
+    </div>
+  </header>
+
+  <main class="max-w-5xl mx-auto px-5 pb-24">
+    <section class="pt-12 pb-8">
+      <div class="kicker mb-3">使用量</div>
+      <h1 class="font-serif text-3xl sm:text-4xl font-bold text-slate-50">有多少人在用</h1>
+      <p class="mt-3 text-slate-400 text-sm">只有彙總數字，不記錄任何被檢測的網址。存在記憶體，重新部署會歸零。</p>
+      <div id="error" class="hidden mt-4 text-sm text-rose-300"></div>
+    </section>
+
+    <section class="grid md:grid-cols-2 gap-8">
+      <div>
+        <div class="kicker mb-2">今日 · UTC</div>
+        <div id="today" class="border-t hair"></div>
+      </div>
+      <div>
+        <div class="kicker mb-2">啟動以來</div>
+        <div id="total" class="border-t hair"></div>
+      </div>
+    </section>
+
+    <section class="mt-12 grid md:grid-cols-2 gap-8">
+      <div>
+        <div class="kicker mb-2">評等分布 · 啟動以來</div>
+        <div id="grades" class="border-t hair pt-3 space-y-2"></div>
+      </div>
+      <div>
+        <div class="kicker mb-2">最常見的技術平台</div>
+        <div id="platforms" class="border-t hair"></div>
+      </div>
+    </section>
+
+    <section class="mt-12">
+      <div class="kicker mb-2">最近 7 天</div>
+      <div class="overflow-x-auto border-t hair">
+        <table class="w-full font-mono text-[12px]">
+          <thead><tr class="text-slate-500"><th class="text-left py-2 font-normal">日期</th><th class="text-right py-2 font-normal">掃描</th><th class="text-right py-2 font-normal">AI 顧問</th><th class="text-right py-2 font-normal">不重複 IP</th></tr></thead>
+          <tbody id="daily"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="mt-12">
+      <div class="kicker mb-2">Claude 額度 · 今日</div>
+      <div id="budget" class="border-t hair"></div>
+    </section>
+
+    <p class="mt-12 font-mono text-[11px] text-slate-600">原始資料：<a href="/api/stats" class="underline decoration-slate-700 underline-offset-4 hover:text-slate-300">/api/stats</a> · 每 60 秒自動更新</p>
+  </main>
+
+  <script>
+    const $ = (s) => document.querySelector(s);
+    const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    const row = (label, value, dim) => `<div class="flex items-baseline justify-between py-2.5 border-b hair"><span class="text-sm ${dim ? 'text-slate-500' : 'text-slate-300'}">${esc(label)}</span><span class="font-mono text-sm ${dim ? 'text-slate-500' : 'text-slate-100'} tabular-nums">${esc(value)}</span></div>`;
+
+    function bucket(b) {
+      return [
+        row('成功掃描', b.scans),
+        row('AI 顧問（Claude / Gemini）', b.consults_llm),
+        row('AI 顧問（規則模式）', b.consults_fallback, true),
+        row('追問', b.followups),
+        row('不重複來源 IP', b.unique_ips),
+        row('平均掃描耗時', b.avg_scan_ms == null ? '—' : b.avg_scan_ms + ' ms'),
+        row('被拒（授權／格式／內網）', b.scans_rejected, true),
+        row('被限流', b.scans_rate_limited, true),
+        row('目標連不上', b.scans_failed, true),
+      ].join('');
+    }
+
+    function render(s) {
+      $('#uptime').textContent = `上線 ${s.uptime_hours} 小時 · 自 ${new Date(s.started_at).toLocaleString('zh-TW', { hour12: false })}`;
+      $('#today').innerHTML = bucket(s.today);
+      $('#total').innerHTML = bucket(s.since_start);
+      const g = s.since_start.grades, max = Math.max(1, ...Object.values(g));
+      const color = { A: '#34d399', B: '#818cf8', C: '#fbbf24', F: '#fb7185' };
+      $('#grades').innerHTML = ['A', 'B', 'C', 'F'].map(k => `<div class="flex items-center gap-3"><span class="font-serif font-bold w-5" style="color:${color[k]}">${k}</span><div class="flex-1 bg-slate-800 h-1.5"><div class="bar" style="width:${(g[k] || 0) / max * 100}%;background:${color[k]}"></div></div><span class="font-mono text-[12px] text-slate-400 w-8 text-right tabular-nums">${g[k] || 0}</span></div>`).join('');
+      const p = s.since_start.top_platforms || [];
+      $('#platforms').innerHTML = p.length ? p.map(([name, n]) => row(name, n)).join('') : '<div class="py-3 text-sm text-slate-600">還沒有資料</div>';
+      $('#daily').innerHTML = (s.daily || []).slice().reverse().map(d => `<tr class="border-t hair text-slate-300"><td class="py-2">${esc(d.date)}</td><td class="py-2 text-right tabular-nums">${d.scans}</td><td class="py-2 text-right tabular-nums">${d.consults}</td><td class="py-2 text-right tabular-nums">${d.unique_ips}</td></tr>`).join('') || '<tr><td colspan="4" class="py-3 text-slate-600">還沒有資料</td></tr>';
+      const b = s.llm_budget || {};
+      $('#budget').innerHTML = row('估算花費', `$${(b.claude_usd_today ?? 0).toFixed(3)} / $${b.claude_usd_limit ?? '—'}`) + row('AI 呼叫次數（不分供應商）', `${b.used_today ?? 0} / ${b.daily_limit ?? '—'}`);
+    }
+
+    async function load() {
+      try {
+        const token = new URLSearchParams(location.search).get('token');
+        const r = await fetch('/api/stats' + (token ? `?token=${encodeURIComponent(token)}` : ''));
+        if (!r.ok) throw new Error(r.status === 403 ? '需要 token：在網址後面加 ?token=你的 STATS_TOKEN' : `HTTP ${r.status}`);
+        render(await r.json());
+        $('#error').classList.add('hidden');
+      } catch (e) {
+        $('#error').textContent = e.message; $('#error').classList.remove('hidden');
+      }
+    }
+    load();
+    setInterval(load, 60000);
+  </script>
+</body>
+</html>

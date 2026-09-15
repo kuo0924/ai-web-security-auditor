@@ -90,7 +90,8 @@ Render 免費方案在 15 分鐘沒人用之後會休眠，下一個人打開要
 
 ### 有多少人在用
 
-- `https://ai-web-security-auditor.onrender.com/api/stats`：今日與啟動以來的掃描數、AI 顧問數、不重複來源 IP、A/B/C/F 分布、最常見的平台、最近 7 天每日數。存在記憶體，重新部署會歸零；UptimeRobot 的探測不會被算進去。
+- 給人看的頁面：`https://ai-web-security-auditor.onrender.com/stats`（每 60 秒自動更新）。
+- 原始 JSON：`https://ai-web-security-auditor.onrender.com/api/stats`：今日與啟動以來的掃描數、AI 顧問數、不重複來源 IP、A/B/C/F 分布、最常見的平台、最近 7 天每日數。存在記憶體，重新部署會歸零；UptimeRobot 的探測不會被算進去。
 - 想不公開這個數字，在 Render 環境變數加 `STATS_TOKEN=隨便一串`，之後要帶 `?token=那串` 才看得到。
 - Render 後台 → Logs 搜 `scan ` 可以看到每一筆「來源 IP → 目標網域」，免費方案保留 7 天。
 
