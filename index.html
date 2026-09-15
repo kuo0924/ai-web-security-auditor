@@ -87,9 +87,12 @@
             <tr class="border-t hair"><td class="py-1.5">X-Frame-Options</td><td class="py-1.5 text-right text-slate-500">−15</td></tr>
             <tr class="border-t hair"><td class="py-1.5">X-Content-Type-Options</td><td class="py-1.5 text-right text-slate-500">−10</td></tr>
             <tr class="border-t hair"><td class="py-1.5">Cookie HttpOnly / Secure</td><td class="py-1.5 text-right text-slate-500">−5 / −5</td></tr>
-            <tr class="border-t hair"><td class="py-1.5 text-slate-300">前端金鑰外洩</td><td class="py-1.5 text-right text-rose-300">−30</td></tr>
-            <tr class="border-t hair"><td class="py-1.5 text-slate-300">/.env 裸露</td><td class="py-1.5 text-right text-rose-300">−30</td></tr>
-            <tr class="border-t border-b hair"><td class="py-1.5 text-slate-300">/.git/config 裸露</td><td class="py-1.5 text-right text-rose-300">−20</td></tr>
+            <tr class="border-t hair"><td class="py-1.5 text-slate-300">前端金鑰外洩（含 Supabase service_role）</td><td class="py-1.5 text-right text-rose-300">−30</td></tr>
+            <tr class="border-t hair"><td class="py-1.5 text-slate-300">/.env、/.env.local、/.env.production 裸露</td><td class="py-1.5 text-right text-rose-300">−30</td></tr>
+            <tr class="border-t hair"><td class="py-1.5 text-slate-300">/.git/config 裸露</td><td class="py-1.5 text-right text-rose-300">−20</td></tr>
+            <tr class="border-t hair"><td class="py-1.5">混合內容（HTTPS 頁載入 http:// 腳本）</td><td class="py-1.5 text-right text-slate-500">−10</td></tr>
+            <tr class="border-t border-b hair"><td class="py-1.5">source map 公開</td><td class="py-1.5 text-right text-slate-500">−5</td></tr>
+            <tr><td class="pt-2 text-slate-600" colspan="2">另有 10 項不扣分的建議：CSP / HSTS 品質、SameSite、版本洩漏、SRI、COOP、TLS 到期、過時函式庫、SPF / DMARC、security.txt</td></tr>
           </tbody>
         </table>
       </div>
@@ -219,7 +222,7 @@
       </details>
 
       <p class="font-mono text-[11px] leading-relaxed text-slate-600 max-w-3xl">
-        本工具僅執行被動、非侵入的公開資源讀取：首頁、站內 JS、/.env、/.git/config 各一次 GET，不構成滲透測試。
+        本工具僅執行被動、非侵入的公開資源讀取：首頁、站內 JS 與其 source map、/.env 系列、/.git/config、security.txt 各一次 GET，另向公開 DNS 查詢 SPF / DMARC 紀錄，不構成滲透測試。
         評分反映基礎防線的配置狀況，不代表網站沒有其他漏洞。
       </p>
     </div>
@@ -445,7 +448,7 @@
       els.details.innerHTML = `
         <div><div class="kicker mb-2">轉址鏈</div>${chain.length ? chain.map(h => `<div class="font-mono text-[12px] break-all text-slate-400">${esc(h.from)} <span class="text-slate-600">→ ${h.status} →</span> ${esc(h.to)}</div>`).join('') : '<div class="font-mono text-[12px] text-slate-600">無轉址</div>'}</div>
         <div><div class="kicker mb-2">掃描的站內 JS · 最多 2 個</div>${(r.details.js_files_scanned || []).length ? r.details.js_files_scanned.map(u => `<div class="font-mono text-[12px] break-all text-slate-400">${esc(u)}</div>`).join('') : '<div class="font-mono text-[12px] text-slate-600">首頁沒有引用站內 JS，只掃描了 HTML</div>'}</div>
-        <div class="font-mono text-[12px] text-slate-600">${r.details.requests_made} 個 GET 請求 · 首頁 HTML ${(r.details.html_bytes / 1024).toFixed(1)} KB · ${esc(r.scanned_at)}</div>
+        <div class="font-mono text-[12px] text-slate-600">${r.details.requests_made} 個 GET 請求（不含公開 DNS 查詢） · 首頁 HTML ${(r.details.html_bytes / 1024).toFixed(1)} KB · ${esc(r.scanned_at)}</div>
         <div><div class="kicker mb-2">安全相關回應標頭</div><div class="overflow-x-auto"><table class="w-full">${rows}</table></div></div>`;
     }
 

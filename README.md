@@ -51,16 +51,34 @@ uvicorn main:app --reload --port 8000
 | 缺少 X-Content-Type-Options: nosniff | 10 |
 | Cookie 缺 HttpOnly / 缺 Secure | 5 / 5 |
 | 前端 HTML 或前 2 個站內 JS 出現 API 金鑰 | 30 |
-| `/.env` 回 200 且內容像 env 檔 | 30 |
+| `/.env`、`/.env.local`、`/.env.production` 回 200 且內容像 env 檔 | 30（一次） |
 | `/.git/config` 回 200 且內容像 git 設定 | 20 |
+| HTTPS 頁面載入 http:// 的腳本、樣式或 iframe（混合內容） | 10 |
+| 站內 JS 的 source map 可下載或內嵌 | 5 |
 | Referrer-Policy、Permissions-Policy | 0（僅建議） |
 
 評等：85 分以上 A、70–84 B、50–69 C、50 以下 F。
 `/.env` 與 `/.git/config` 會辨識 SPA 的 fallback 頁面（回 200 但內容是 HTML），不會誤判。
+金鑰特徵除了 OpenAI / Google / Stripe / AWS / GitHub / Slack / PEM 私鑰，還會解開前端出現的 JWT，看到 `role: service_role`（Supabase 的資料庫 root 金鑰）直接判定外洩；anon key 不會被誤報。
+
+**不扣分的進階建議**（每項都附白話說明與修復 Prompt）：
+
+| 項目 | 怎麼判斷 |
+|---|---|
+| CSP 有設但有漏洞 | script-src 允許 `'unsafe-inline'`（無 nonce/hash）或 `'unsafe-eval'`、萬用來源、缺 object-src / base-uri、只用 `<meta>` 設定 |
+| HSTS 偏弱 | max-age 少於 6 個月、缺 includeSubDomains |
+| Cookie 缺 SameSite | Set-Cookie 沒有 SameSite 屬性 |
+| 伺服器版本洩漏 | Server / X-Powered-By / meta generator 含版本號 |
+| 第三方腳本缺 SRI | 外部 CDN 腳本沒有 integrity（GA/GTM 等動態腳本已排除） |
+| 缺 Cross-Origin-Opener-Policy | 沒有 COOP 標頭 |
+| TLS 憑證即將到期 | 從連線的憑證讀 notAfter，剩不到 14 天 |
+| 過時函式庫 | jQuery < 3.5、AngularJS 1.x、Bootstrap 3、Vue 2 |
+| 缺 SPF / DMARC | 向公開 DNS 查 TXT；託管平台子網域（vercel.app 等）自動略過 |
+| 缺 security.txt | `/.well-known/security.txt` 不存在或無 Contact |
 
 ## 法律邊界與防護
 
-- **只做被動檢查**：每次體檢最多送出約 6–9 個一般瀏覽器也會送的 GET 請求（首頁、http 轉址探測、站內 JS、`/.env`、`/.git/config`）。沒有注入、爆破、port 掃描。
+- **只做被動檢查**：每次體檢最多送出約 12 個一般瀏覽器也會送的 GET 請求（首頁、http 轉址探測、站內 JS 與其 source map、`/.env` 系列三個、`/.git/config`、`security.txt`），另向 Cloudflare 的公開 DNS 查 SPF / DMARC。沒有注入、爆破、目錄列舉、port 掃描，也不會拿抓到的金鑰去呼叫任何服務。
 - **SSRF 阻絕**：目標網域解析出的每一個 IP 都必須是公開位址（私有、loopback、link-local、保留、多播全部拒絕），`localhost`、`*.local`、`*.internal` 等主機名稱直接擋。實際連線會**釘選到已驗證的 IP**，Host 與 SNI 仍用原網域，因此 DNS Rebinding 也無效。每一跳轉址都重新驗證。
 - **限流**：同一來源 IP 每分鐘 3 次體檢、10 次 AI 顧問呼叫（記憶體滑動視窗，可用環境變數調整）。
 - **授權聲明**：前端必須勾選授權才能送出，後端也會再驗一次。
