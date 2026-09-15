@@ -39,8 +39,25 @@ const SEV = {
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const show = (el, on = true) => el.classList.toggle('hidden', !on);
 
-function showError(msg) { els.error.textContent = msg; show(els.error, true); }
-function clearError() { els.error.textContent = ''; show(els.error, false); }
+let errorTimer = null;
+function showError(msg) { clearInterval(errorTimer); els.error.textContent = msg; show(els.error, true); }
+function clearError() { clearInterval(errorTimer); els.error.textContent = ''; show(els.error, false); }
+// 429 顯示倒數、502 附上排查提示，其他照原文
+function showScanError(e) {
+  const msg = e.message || '檢測失敗';
+  if (e.status === 429) {
+    let left = e.retryAfter || (Number((msg.match(/(\d+)\s*秒/) || [])[1]) || 60);
+    const base = msg.replace(/，請\s*\d+\s*秒後再試/, '');
+    const tick = () => { els.error.textContent = left > 0 ? `${base}，${left} 秒後可以再掃` : `${base}，現在可以再掃了`; if (left <= 0) clearInterval(errorTimer); left -= 1; };
+    clearInterval(errorTimer); tick(); errorTimer = setInterval(tick, 1000); show(els.error, true);
+    return;
+  }
+  if (e.status === 502) {
+    showError(msg + '。請確認網址沒有打錯、網站對外開放且不需登入；本工具無法檢測內網、本機或只在特定地區開放的網站。');
+    return;
+  }
+  showError(msg);
+}
 
 let toastTimer = null;
 function toast(msg) {
@@ -124,7 +141,8 @@ async function postJSON(path, body) {
   try { data = await res.json(); } catch {}
   if (!res.ok) {
     const detail = typeof data.detail === 'string' ? data.detail : (Array.isArray(data.detail) ? data.detail.map(d => d.msg).join('；') : `HTTP ${res.status}`);
-    throw new Error(detail);
+    const err = new Error(detail); err.status = res.status; err.retryAfter = Number(res.headers.get('Retry-After')) || null;
+    throw err;
   }
   return data;
 }
@@ -151,7 +169,7 @@ els.form.addEventListener('submit', async (ev) => {
     recordHistory(data);
     consultAI();
   } catch (e) {
-    showError(e.message || '檢測失敗');
+    showScanError(e);
   } finally {
     setLoading(false);
   }

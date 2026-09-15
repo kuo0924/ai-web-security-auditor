@@ -764,6 +764,20 @@ ISSUE_CATALOG: dict[str, dict[str, Any]] = {
         "penalty": 0,
         "description": "沒有 security.txt。這是業界標準的「資安聯絡方式」檔案，有人發現你網站的漏洞時知道該通知誰，而不是直接公開或放著不管。",
     },
+    "supabase_rls": {
+        "title": "提醒：前端使用 Supabase，請確認每張表都開了 RLS",
+        "category": "後端服務設定",
+        "severity": "info",
+        "penalty": 0,
+        "description": "前端程式碼裡有 Supabase 專案網址與 anon key。anon key 放前端是設計上允許的，但它能直接打資料庫的 REST API：只要任何一張表沒開 Row Level Security 或 policy 寫太鬆，任何人都能讀寫整張表。這是 Lovable、Bolt 專案最常見的資料外洩原因。本工具不會去讀你的資料，只能提醒你自己確認。",
+    },
+    "firebase_rules": {
+        "title": "提醒：前端使用 Firebase，請確認 Security Rules 與金鑰限制",
+        "category": "後端服務設定",
+        "severity": "info",
+        "penalty": 0,
+        "description": "前端程式碼裡有 Firebase 設定（apiKey、projectId）。這把 apiKey 本來就是公開的，真正的防線是 Firestore / Realtime Database / Storage 的 Security Rules：若還是預設的測試模式（allow read, write: if true）或已過期，任何人都能讀寫你的資料庫。本工具不會去讀你的資料，只能提醒你自己確認。",
+    },
 }
 
 SECRET_PATTERNS: list[dict[str, Any]] = [
@@ -1121,6 +1135,26 @@ def detect_tech(headers: httpx.Headers, html: str) -> dict[str, Any]:
         add("Vite")
     if "wp-content" in h or "wp-includes" in h:
         add("WordPress")
+    if "astro-island" in h or 'name="generator" content="astro' in h:
+        add("Astro")
+    if "__remixcontext" in h or "/build/_shared/" in h:
+        add("Remix")
+    if "___gatsby" in h or "/page-data/" in h:
+        add("Gatsby")
+    if 'content="hugo' in h:
+        add("Hugo")
+    if 'content="docusaurus' in h or "docusaurus" in h:
+        add("Docusaurus")
+    if 'content="framer' in h or "framerusercontent.com" in h:
+        add("Framer")
+    if 'content="webflow' in h or "webflow.com" in h and "wf-" in h:
+        add("Webflow")
+    if "cdn.shopify.com" in h or "shopify" in headers.get("x-shopid", "").lower() or "x-shopify-stage" in headers:
+        add("Shopify")
+    if "wixstatic.com" in h or "x-wix-request-id" in headers:
+        add("Wix")
+    if "bubble.io" in h and "bubble" in h:
+        add("Bubble")
     if "gptengineer" in h or "lovable.dev" in h or "lovable.app" in h:
         add("Lovable")
     if "v0.dev" in h or "v0.app" in h:
@@ -1357,6 +1391,19 @@ def build_fix_prompt(issue_id: str, tech: dict[str, Any], evidence: str = "") ->
             "1) 根網域 `v=spf1 include:<你寄信服務的 include，例如 _spf.google.com> -all`，網站完全不寄信就用 `v=spf1 -all`；"
             "2) `_dmarc` 子網域 `v=DMARC1; p=quarantine; rua=mailto:你的信箱`，觀察報告一段時間後可升為 `p=reject`；"
             "3) 有寄信的話再加 DKIM（由寄信服務提供公鑰）。設定完用 `nslookup -type=TXT _dmarc.你的網域` 確認。"
+        ),
+        "supabase_rls": (
+            f"任務：稽核 Supabase 的 Row Level Security。偵測到：{evidence or '前端含 Supabase 專案網址與 anon key'}。"
+            "請幫我：1) 列出專案所有資料表，逐一確認 RLS 已啟用（Supabase Dashboard → Table Editor 的盾牌圖示，或 SQL：select tablename, rowsecurity from pg_tables where schemaname='public'）；"
+            "2) 檢查每張表的 policy，找出 `using (true)` 這種對 anon 角色全開的規則，改成以 auth.uid() 綁定使用者；"
+            "3) 確認 service_role key 只出現在後端或 Edge Function 的環境變數，前端程式碼與 git 歷史都沒有；"
+            "4) Storage bucket 的 policy 也一併檢查；5) 給我修改後的 SQL 與驗證方式（用 anon key 直接呼叫 REST API 應該讀不到別人的資料）。"
+        ),
+        "firebase_rules": (
+            f"任務：稽核 Firebase 的安全設定。偵測到：{evidence or '前端含 Firebase 設定'}。"
+            "請幫我：1) 檢查 Firestore、Realtime Database、Storage 的 Security Rules，找出 `allow read, write: if true` 或 `if request.time < timestamp` 這種測試模式規則，改成以 request.auth.uid 綁定使用者；"
+            "2) 到 GCP 主控台 → APIs & Services → Credentials，為這把 Web API Key 設定 HTTP referrer 限制（只允許你的網域）與 API 限制；"
+            "3) 若有用 Cloud Functions，確認需要驗證的端點都有檢查 ID token；4) 給我修改後的 rules 內容，並用 Firebase 模擬器或 Rules Playground 驗證未登入者讀不到資料。"
         ),
         "security_txt": (
             "任務：建立 /.well-known/security.txt。內容至少包含 `Contact: mailto:你的資安聯絡信箱`、`Expires: <一年後的 ISO 時間>`、`Preferred-Languages: zh-TW, en`。"
@@ -1688,6 +1735,16 @@ def evaluate(
         issues.append(issue)
     else:
         passed.append(make_pass("secret_leak", "前端程式碼未發現 API 金鑰", f"已掃描首頁 HTML 與 {len(js_scanned)} 個站內 JS（{len(SECRET_PATTERNS) + 1} 種金鑰特徵，含 Supabase service_role JWT）"))
+
+    # --- 4a. 後端服務設定提醒：Supabase / Firebase（不讀資料，只看前端有沒有設定）---
+    all_text = "\n".join(t[:400_000] for _, t in sources)
+    sb_url = re.search(r"https://([a-z0-9-]+)\.supabase\.co", all_text)
+    if sb_url:
+        has_anon = any(str((_jwt_payload(mm.group(0)) or {}).get("role", "")).lower() == "anon" for mm in JWT_PATTERN.finditer(all_text))
+        issues.append(make_issue("supabase_rls", tech, f"Supabase 專案 {sb_url.group(1)}.supabase.co" + ("，前端帶有 anon key" if has_anon else "")))
+    fb = re.search(r"[\"']?(?:projectId|authDomain)[\"']?\s*:\s*[\"']([a-z0-9-]+)(?:\.firebaseapp\.com)?[\"']", all_text)
+    if fb and re.search(r"firebaseapp\.com|firebaseio\.com|firebase", all_text, re.I):
+        issues.append(make_issue("firebase_rules", tech, f"Firebase 專案 {fb.group(1)}"))
 
     # --- 4b. 進階：SRI、過時函式庫、source map ---
     no_sri = scripts_without_sri(html, main.url)
@@ -2356,8 +2413,20 @@ async def lifespan(_app: FastAPI):
         await save_state()
 
 
-app = FastAPI(title="AI Web Security Auditor", version="1.0.0", docs_url=None, redoc_url=None, lifespan=lifespan)
+app = FastAPI(
+    title="網站安全體檢儀 API",
+    version="1.1.0",
+    description=(
+        "被動式網站安全檢測。`POST /api/scan` 只送一般瀏覽器也會送的 GET 請求，不做注入、爆破或掃描；"
+        "呼叫者必須是目標網站的擁有者或已取得授權。每個來源 IP 每分鐘 3 次。"
+        "部署端若啟用 Turnstile，自動化呼叫請帶 `X-Api-Key`。"
+    ),
+    docs_url="/api/docs", openapi_url="/api/openapi.json", redoc_url=None, lifespan=lifespan,
+)
 app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
+MAX_BODY_BYTES = 1_000_000  # 報告 JSON 通常 30–60 KB，1 MB 綽綽有餘
+REPORT_CACHE_TTL = 45  # 同一目標短時間內重複掃描直接回快取，減少對目標網站的請求
+report_cache: dict[tuple[str, tuple[str, ...]], tuple[float, dict[str, Any]]] = {}
 
 
 class ScanRequest(BaseModel):
@@ -2437,6 +2506,9 @@ def render_page(filename: str, request: Request) -> Response:
 
 @app.middleware("http")
 async def own_security_headers(request: Request, call_next):
+    length = request.headers.get("content-length")
+    if length and length.isdigit() and int(length) > MAX_BODY_BYTES:
+        return JSONResponse(status_code=413, content={"detail": "請求內容過大"})
     response = await call_next(request)
     for k, v in OWN_SECURITY_HEADERS.items():
         response.headers.setdefault(k, v)
@@ -2475,6 +2547,18 @@ async def favicon():
 @app.get("/og.png")
 async def og_image():
     return FileResponse(BASE_DIR / "static" / "og.png", media_type="image/png", headers={"Cache-Control": "public, max-age=86400"})
+
+
+@app.get("/robots.txt")
+async def robots_txt():
+    return Response(f"User-agent: *\nAllow: /\nDisallow: /api/\nDisallow: /stats\nDisallow: /badge/\nSitemap: {PUBLIC_ORIGIN}/sitemap.xml\n", media_type="text/plain; charset=utf-8", headers={"Cache-Control": "public, max-age=86400"})
+
+
+@app.get("/sitemap.xml")
+async def sitemap_xml():
+    body = ('<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'
+            f'<url><loc>{PUBLIC_ORIGIN}/</loc><changefreq>weekly</changefreq></url></urlset>\n')
+    return Response(body, media_type="application/xml; charset=utf-8", headers={"Cache-Control": "public, max-age=86400"})
 
 
 @app.get("/.well-known/security.txt")
@@ -2596,6 +2680,19 @@ async def api_scan(body: ScanRequest, request: Request):
         )
     await require_human(request, body.turnstile_token, ip)
 
+    cache_key = (target, tuple(normalize_extra_paths(body.paths)))
+    cached = report_cache.get(cache_key)
+    if cached and time.time() - cached[0] < REPORT_CACHE_TTL:
+        age = int(time.time() - cached[0])
+        report = json.loads(json.dumps(cached[1]))
+        report["details"]["notes"] = [f"這是 {age} 秒前的快取結果（同一目標 {REPORT_CACHE_TTL} 秒內不重複請求）；若剛改完設定，請稍後再掃一次", *report["details"].get("notes", [])]
+        report["details"]["cached_seconds"] = age
+        stats.record_scan(ip, report)
+        return report
+    for key, (ts, _) in list(report_cache.items()):
+        if time.time() - ts >= REPORT_CACHE_TTL:
+            report_cache.pop(key, None)
+
     log.info("scan %s -> %s%s", ip, urlparse(target).hostname, f" (+{len(body.paths)} paths)" if body.paths else "")
     # 使用者沒打協定時先試 https://，連不上再退回 http://（結果會如實反映該站沒有 HTTPS）
     candidates = [target]
@@ -2610,6 +2707,7 @@ async def api_scan(body: ScanRequest, request: Request):
                 host = (report.get("target") or {}).get("hostname")
                 if host:
                     badge_cache[host] = {"score": report["score"], "grade": report["grade"], "at": report["scanned_at"]}
+                report_cache[cache_key] = (time.time(), report)
                 return report
             except TargetUnreachable as exc:
                 last_error = exc
