@@ -2042,7 +2042,10 @@ async def index():
 
 
 @app.get("/api/health")
-async def health():
+async def health(request: Request):
+    ua = request.headers.get("user-agent", "")
+    if "uptimerobot" in ua.lower():  # 讓 Render log 搜 "keepalive" 就能確認外部監控有在敲
+        log.info("keepalive ping from %s (%s)", client_ip(request), ua[:40])
     providers = configured_providers()
     provider = providers[0] if providers else "none"
     return {
