@@ -10,7 +10,13 @@
         {"id": "hsts", "title": "缺少 Strict-Transport-Security (HSTS)", "severity": "medium", "penalty": 15, "evidence": "回應中沒有 Strict-Transport-Security 標頭"},
         {"id": "x_frame_options", "title": "缺少 X-Frame-Options", "severity": "medium", "penalty": 15, "evidence": "沒有 X-Frame-Options 標頭"}
       ],
-      "passed": ["https", "x_content_type_options", "secret_leak", "env_exposed", "git_exposed"]
+      "passed": [
+        {"id": "https", "detail": "http://demo-app.vercel.app/ 回應 308 並導向 https://demo-app.vercel.app/"},
+        {"id": "x_content_type_options", "detail": "X-Content-Type-Options: nosniff"},
+        {"id": "secret_leak", "detail": "已掃描首頁 HTML 與 2 個站內 JS（7 種金鑰特徵）"},
+        {"id": "env_exposed", "detail": "/.env 回應 HTTP 404"},
+        {"id": "git_exposed", "detail": "/.git/config 回應 HTTP 404"}
+      ]
     },
     "output": {
       "summary": "你的網站已經有 HTTPS，也沒有金鑰外洩或檔案裸露這種會馬上出事的問題，所以不用慌。但目前少了三道基本防線：CSP、HSTS 和 X-Frame-Options，意思是一旦頁面上任何地方出現 XSS 漏洞，或使用者被誘導到假冒頁面，瀏覽器不會幫你擋。好消息是 Next.js 在 next.config.js 一次就能補齊，大約 10 分鐘。",

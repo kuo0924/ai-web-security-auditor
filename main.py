@@ -1137,6 +1137,7 @@ SYSTEM_PROMPT = """你是一位白話且接地氣的 AI 資安顧問。請針對
 - 只根據數據說話，不臆測數據中沒有的漏洞；不建議任何主動攻擊或滲透測試。
 - 每個修復 Prompt 必須：指名檔案位置與框架（依偵測到的技術棧）、列出確切的標頭名稱與值、要求 AI 先確認現有設定再修改、提醒副作用（例如 CSP 擋掉第三方腳本）。
 - 依 penalty 高低排列，penalty 為 0 的建議項目合併成一個 Prompt；同一個設定檔就能一起解決的標頭類項目也可以合併。
+- passed 項目的 detail 若帶有括號提醒（例如 script-src 允許 'unsafe-inline'、HSTS max-age 少於 6 個月、CSP 只透過 <meta> 設定），代表「有設但有瑕疵」：必須在 summary 點出、放進 priority_actions，並給一個對應的 fix_prompt。不要因為分數是滿分就說沒事。
 - 篇幅：summary 2～4 句，priority_actions 每項 40 字內，每個 prompt 150～300 字，fix_prompts 最多 6 個。
 - 一律使用繁體中文（台灣用語），程式碼、標頭名稱與檔名維持英文。
 - 只輸出 JSON，不要加任何前後說明或 Markdown 圍欄，格式如下：
@@ -1321,7 +1322,8 @@ def scan_digest(scan: dict[str, Any]) -> dict[str, Any]:
         "grade": str(scan.get("grade", ""))[:2],
         "tech": {"stack": [str(s)[:30] for s in (tech.get("stack") or [])[:12]], "platform": str(tech.get("platform", "generic"))[:20]},
         "issues": issues,
-        "passed": [str(p.get("id", ""))[:40] for p in scan.get("passed", [])[:20]],
+        # 通過項目也帶備註：像「CSP 允許 'unsafe-inline'」「HSTS max-age 太短」這種通過但有瑕疵的情況，模型才看得到
+        "passed": [{"id": str(p.get("id", ""))[:40], "detail": str(p.get("detail", ""))[:200]} for p in scan.get("passed", [])[:20]],
     }
 
 
