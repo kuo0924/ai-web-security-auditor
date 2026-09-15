@@ -2041,11 +2041,11 @@ async def index():
     return FileResponse(INDEX_HTML, media_type="text/html; charset=utf-8")
 
 
-@app.get("/api/health")
+@app.api_route("/api/health", methods=["GET", "HEAD"])  # 監控服務常用 HEAD，只開 GET 會回 405 被判成掛掉
 async def health(request: Request):
     ua = request.headers.get("user-agent", "")
     if "uptimerobot" in ua.lower():  # 讓 Render log 搜 "keepalive" 就能確認外部監控有在敲
-        log.info("keepalive ping from %s (%s)", client_ip(request), ua[:40])
+        log.info("keepalive ping from %s via %s (%s)", client_ip(request), request.method, ua[:40])
     providers = configured_providers()
     provider = providers[0] if providers else "none"
     return {
