@@ -208,13 +208,30 @@ class DailyBudget:
 llm_budget = DailyBudget(LLM_DAILY_BUDGET, LLM_DAILY_BUDGET_USD)
 
 
+def _is_public_ip(value: str) -> bool:
+    try:
+        return _ip_is_public(ipaddress.ip_address(value))
+    except ValueError:
+        return False
+
+
 def client_ip(request: Request) -> str:
     if TRUST_PROXY:
+        # Cloudflare / Render 這類平台會用專屬標頭給真實來源，最可靠
+        for name in ("cf-connecting-ip", "true-client-ip", "x-real-ip"):
+            v = (request.headers.get(name) or "").strip()
+            if v and _is_public_ip(v):
+                return v
         xff = request.headers.get("x-forwarded-for")
         if xff:
-            # 取最右邊：那是離我們最近的可信代理（Render / Cloudflare）附加的真實來源，
-            # 最左邊可以被客戶端自己偽造來繞過限流
-            return xff.split(",")[-1].strip()
+            parts = [p.strip() for p in xff.split(",") if p.strip()]
+            # 從右往左跳過內部代理（私有位址），取第一個公開位址；
+            # 最左邊可以被客戶端自己偽造，所以不從左邊取
+            for p in reversed(parts):
+                if _is_public_ip(p):
+                    return p
+            if parts:
+                return parts[-1]
     return request.client.host if request.client else "unknown"
 
 
@@ -1527,6 +1544,17 @@ async def health():
         "llm_budget": llm_budget.status(),
         "knowledge_docs": len(KB.docs),
         "scan_rate_limit_per_min": SCAN_RATE_LIMIT[0],
+    }
+
+
+@app.get("/api/whoami")
+async def whoami(request: Request):
+    """回報呼叫者自己被辨識成哪個 IP，用來確認反向代理後的限流鍵是否正確。"""
+    return {
+        "rate_limit_key": client_ip(request),
+        "trust_proxy": TRUST_PROXY,
+        "socket_peer": request.client.host if request.client else None,
+        "headers": {k: request.headers.get(k) for k in ("x-forwarded-for", "cf-connecting-ip", "true-client-ip", "x-real-ip")},
     }
 
 
