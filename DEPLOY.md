@@ -1,5 +1,7 @@
 # 部署到公網
 
+**正式網址：https://ai-web-security-auditor.onrender.com**（Render 服務 ID `srv-dakkrtifngtc73apthi0`，2026-09-15 上線，Blueprint 已綁定 GitHub main 分支，push 即自動部署）
+
 整個產品是一個 FastAPI 服務（後端 API + 靜態的 index.html），放 Render 免費方案就夠，從 GitHub 自動部署。
 
 ```
@@ -45,7 +47,7 @@ git log -p --all | grep -E "AQ\.|AIza|sk-[A-Za-z0-9]{30}"
 
    其他變數（模型、effort、每日金額上限、限流數字）都已寫在 `render.yaml`，不用動。
 4. 按 Apply，等 2～3 分鐘建置完成
-5. 拿到類似 `https://ai-web-security-auditor.onrender.com` 的網址
+5. 拿到網址（目前是 `https://ai-web-security-auditor.onrender.com`）
 6. 開 `https://<你的網址>/api/health` 確認：
    - `"llm_providers_order": ["anthropic", "openai"]`
    - `"llm_model": "claude-sonnet-5"`
@@ -87,6 +89,9 @@ Render 免費方案在 15 分鐘沒人用之後會休眠，下一個人打開要
 - 建議在首頁底部加上聯絡方式（Email），讓被掃方有管道找你。
 
 ### 運維
+
+- **在 Render 貼金鑰時**：只貼金鑰本身，別貼到指令文字；貼完到 `https://<網址>/api/health` 看 `key_lengths`，Claude 金鑰應為 108、Gemini 為 53。貼錯時到 Environment → Edit 重貼，Save 後會自動重新部署。
+- **限流來源 IP**：Render 的 X-Forwarded-For 尾端是內部私有 IP，程式改用 CF-Connecting-IP／最右側公開 IP；用 `/api/whoami` 可確認自己被辨識成哪個 IP。
 
 - 看 log：Render 後台 → 服務 → Logs。中文 log 已改 UTF-8 不會亂碼。
 - 改知識庫：編輯 `knowledge/*.md` 後 push，會自動重新部署；或對線上服務 `POST /api/knowledge/reload`。

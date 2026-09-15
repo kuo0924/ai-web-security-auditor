@@ -90,7 +90,7 @@ uvicorn main:app --reload --port 8000
 
 ## 部署到公網
 
-完整步驟見 [DEPLOY.md](DEPLOY.md)。摘要：repo 在 GitHub，Render 讀 `render.yaml` 自動建服務，只需在 Render 後台填 `OPENAI_API_KEY`。
+正式網址：**https://ai-web-security-auditor.onrender.com**。完整步驟見 [DEPLOY.md](DEPLOY.md)。摘要：repo 在 GitHub，Render 讀 `render.yaml` 自動建服務，只需在 Render 後台填 `OPENAI_API_KEY`。
 
 公開服務用的保護（都可用環境變數調整）：
 
