@@ -1542,6 +1542,8 @@ async def health():
         "llm_model": {"openai": OPENAI_MODEL, "anthropic": ANTHROPIC_MODEL}.get(provider),
         "llm_models_fallback": (["anthropic:" + ANTHROPIC_MODEL] if "anthropic" in providers else []) + (["openai:" + m for m in OPENAI_MODELS] if "openai" in providers else []),
         "llm_budget": llm_budget.status(),
+        # 只給長度，用來確認部署平台上貼的金鑰是否完整（不會洩漏內容）
+        "key_lengths": {"anthropic": len(ANTHROPIC_API_KEY), "openai": len(OPENAI_API_KEY)},
         "knowledge_docs": len(KB.docs),
         "scan_rate_limit_per_min": SCAN_RATE_LIMIT[0],
     }
