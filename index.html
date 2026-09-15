@@ -113,7 +113,7 @@
           <input id="auth" type="checkbox" class="mt-1 w-4 h-4 rounded-sm border-slate-600 bg-slate-950 text-indigo-500 focus:ring-0 focus:ring-offset-0">
           <span>我是這個網站的擁有者或已取得檢測授權。本工具僅讀取公開回傳的標頭與靜態檔案，不做注入、爆破或掃描。</span>
         </label>
-        <div class="mt-4 font-mono text-[11px] text-slate-600">每個來源 IP 每分鐘 3 次 · 內網、本機與保留網段直接拒絕</div>
+        <div class="mt-4 font-mono text-[11px] text-slate-600">每個來源 IP 每分鐘 3 次 · 內網、本機與保留網段直接拒絕<span id="usage-line" class="hidden"></span></div>
         <div id="loading" class="hidden mt-5 pt-5 rule font-mono text-[12px] text-slate-300">
           <span class="text-indigo-300">▸</span> <span id="loading-text">正在準備檢測</span>
         </div>
@@ -562,6 +562,13 @@
       if (btn.dataset.copy === 'issue' && state.scan) copyText(state.scan.issues[i].fix_prompt);
       if (btn.dataset.copy === 'ai' && state.consult) copyText(state.consult.fix_prompts[i].prompt);
     });
+
+    fetch('/api/stats').then(r => r.ok ? r.json() : null).then(s => {
+      if (!s || !s.since_start || !s.since_start.scans) return;
+      const el = $('#usage-line');
+      el.textContent = ` · 已體檢 ${s.since_start.scans} 個網站（今日 ${s.today.scans}）`;
+      el.classList.remove('hidden');
+    }).catch(() => {});
 
     fetch('/api/health').then(r => r.json()).then(h => {
       const on = h.llm_provider && h.llm_provider !== 'none';

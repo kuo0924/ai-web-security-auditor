@@ -88,6 +88,12 @@ Render 免費方案在 15 分鐘沒人用之後會休眠，下一個人打開要
 - 每次掃描的 log 都有「來源 IP → 目標網域」，在 Render 後台的 Logs 分頁可查；被投訴時拿得出紀錄。
 - 建議在首頁底部加上聯絡方式（Email），讓被掃方有管道找你。
 
+### 有多少人在用
+
+- `https://ai-web-security-auditor.onrender.com/api/stats`：今日與啟動以來的掃描數、AI 顧問數、不重複來源 IP、A/B/C/F 分布、最常見的平台、最近 7 天每日數。存在記憶體，重新部署會歸零；UptimeRobot 的探測不會被算進去。
+- 想不公開這個數字，在 Render 環境變數加 `STATS_TOKEN=隨便一串`，之後要帶 `?token=那串` 才看得到。
+- Render 後台 → Logs 搜 `scan ` 可以看到每一筆「來源 IP → 目標網域」，免費方案保留 7 天。
+
 ### 運維
 
 - **在 Render 貼金鑰時**：只貼金鑰本身，別貼到指令文字；貼完到 `https://<網址>/api/health` 看 `key_lengths`，Claude 金鑰應為 108、Gemini 為 53。貼錯時到 Environment → Edit 重貼，Save 後會自動重新部署。

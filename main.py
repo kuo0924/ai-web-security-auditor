@@ -209,6 +209,88 @@ class DailyBudget:
 
 
 llm_budget = DailyBudget(LLM_DAILY_BUDGET, LLM_DAILY_BUDGET_USD)
+STATS_TOKEN = os.getenv("STATS_TOKEN", "").strip()  # 設了就要帶 ?token= 才能看 /api/stats；留空 = 公開（只有彙總數字）
+
+
+class UsageStats:
+    """使用量統計（記憶體，服務重啟歸零）：只存彙總數字，不存目標網址。"""
+
+    KEEP_DAYS = 7
+
+    def __init__(self) -> None:
+        self.started_at = datetime.now(timezone.utc)
+        self.days: dict[str, dict[str, Any]] = {}
+        self.total = self._blank()
+
+    @staticmethod
+    def _blank() -> dict[str, Any]:
+        return {
+            "scans": 0, "scans_rejected": 0, "scans_rate_limited": 0, "scans_failed": 0,
+            "consults": 0, "consults_llm": 0, "consults_fallback": 0, "followups": 0,
+            "grades": {"A": 0, "B": 0, "C": 0, "F": 0}, "platforms": {}, "scan_ms_sum": 0, "ips": set(),
+        }
+
+    def _today(self) -> dict[str, Any]:
+        key = datetime.now(timezone.utc).date().isoformat()
+        if key not in self.days:
+            self.days[key] = self._blank()
+            for old in sorted(self.days)[:-self.KEEP_DAYS]:
+                del self.days[old]
+        return self.days[key]
+
+    def _buckets(self) -> tuple[dict[str, Any], dict[str, Any]]:
+        return self._today(), self.total
+
+    def _touch_ip(self, bucket: dict[str, Any], ip: str) -> None:
+        if len(bucket["ips"]) < 50_000:
+            bucket["ips"].add(ip)
+
+    def record_scan(self, ip: str, report: dict[str, Any]) -> None:
+        for b in self._buckets():
+            b["scans"] += 1
+            b["grades"][report.get("grade", "F")] = b["grades"].get(report.get("grade", "F"), 0) + 1
+            platform = (report.get("tech") or {}).get("platform", "generic")
+            b["platforms"][platform] = b["platforms"].get(platform, 0) + 1
+            b["scan_ms_sum"] += int((report.get("details") or {}).get("total_ms", 0) or 0)
+            self._touch_ip(b, ip)
+
+    def record_scan_outcome(self, ip: str, kind: str) -> None:
+        """kind: rejected（授權/格式/SSRF）| rate_limited | failed（目標連不上）"""
+        for b in self._buckets():
+            b[f"scans_{kind}"] += 1
+            self._touch_ip(b, ip)
+
+    def record_consult(self, ip: str, mode: str, followup: bool) -> None:
+        for b in self._buckets():
+            if followup:
+                b["followups"] += 1
+            else:
+                b["consults"] += 1
+                b["consults_llm" if mode == "llm" else "consults_fallback"] += 1
+            self._touch_ip(b, ip)
+
+    @staticmethod
+    def _view(b: dict[str, Any]) -> dict[str, Any]:
+        out = {k: v for k, v in b.items() if k not in ("ips", "scan_ms_sum", "platforms")}
+        out["unique_ips"] = len(b["ips"])
+        out["avg_scan_ms"] = round(b["scan_ms_sum"] / b["scans"]) if b["scans"] else None
+        out["top_platforms"] = sorted(b["platforms"].items(), key=lambda kv: -kv[1])[:5]
+        return out
+
+    def snapshot(self) -> dict[str, Any]:
+        today = self._today()
+        return {
+            "started_at": self.started_at.isoformat(),
+            "uptime_hours": round((datetime.now(timezone.utc) - self.started_at).total_seconds() / 3600, 1),
+            "today": self._view(today),
+            "since_start": self._view(self.total),
+            "daily": [{"date": d, "scans": b["scans"], "consults": b["consults"], "unique_ips": len(b["ips"])} for d, b in sorted(self.days.items())],
+            "llm_budget": llm_budget.status(),
+            "note": "記憶體統計，服務重啟或重新部署會歸零；不記錄目標網址",
+        }
+
+
+stats = UsageStats()
 
 
 def _is_public_ip(value: str) -> bool:
@@ -2073,18 +2155,29 @@ async def whoami(request: Request):
     }
 
 
+@app.get("/api/stats")
+async def api_stats(request: Request):
+    """使用量彙總（不含任何目標網址）。設定 STATS_TOKEN 後需帶 ?token=。"""
+    if STATS_TOKEN and request.query_params.get("token") != STATS_TOKEN:
+        raise HTTPException(status_code=403, detail="需要正確的 token")
+    return stats.snapshot()
+
+
 @app.post("/api/scan")
 async def api_scan(body: ScanRequest, request: Request):
+    ip = client_ip(request)
     if not body.authorized:
+        stats.record_scan_outcome(ip, "rejected")
         raise HTTPException(status_code=400, detail="請先確認你具備檢測此網站的授權")
     try:
         target = normalize_target(body.url)
     except ValueError as exc:
+        stats.record_scan_outcome(ip, "rejected")
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-    ip = client_ip(request)
     allowed, retry_after = scan_limiter.hit(ip)
     if not allowed:
+        stats.record_scan_outcome(ip, "rate_limited")
         raise HTTPException(
             status_code=429,
             detail=f"每分鐘最多檢測 {SCAN_RATE_LIMIT[0]} 次，請 {retry_after} 秒後再試",
@@ -2100,11 +2193,15 @@ async def api_scan(body: ScanRequest, request: Request):
     try:
         for candidate in candidates:
             try:
-                return await run_scan(candidate)
+                report = await run_scan(candidate)
+                stats.record_scan(ip, report)
+                return report
             except TargetUnreachable as exc:
                 last_error = exc
     except SSRFBlocked as exc:
+        stats.record_scan_outcome(ip, "rejected")
         raise HTTPException(status_code=400, detail=f"已拒絕：{exc}") from exc
+    stats.record_scan_outcome(ip, "failed")
     raise HTTPException(status_code=502, detail=f"無法完成檢測：{last_error}")
 
 
@@ -2129,8 +2226,12 @@ async def api_ai_consult(body: ConsultRequest, request: Request):
         raise HTTPException(status_code=400, detail="請先完成一次網站體檢")
     if body.question and body.question.strip():
         history = [t.model_dump() for t in body.history]
-        return await answer_followup(body.scan, body.question.strip(), history)
-    return await generate_consult(body.scan)
+        result = await answer_followup(body.scan, body.question.strip(), history)
+        stats.record_consult(ip, result.get("mode", "fallback"), followup=True)
+        return result
+    result = await generate_consult(body.scan)
+    stats.record_consult(ip, result.get("mode", "fallback"), followup=False)
+    return result
 
 
 @app.post("/api/knowledge/reload")
