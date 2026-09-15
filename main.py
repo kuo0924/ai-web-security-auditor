@@ -30,7 +30,7 @@ import time
 from collections import defaultdict, deque
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Optional
 from urllib.parse import urljoin, urlparse, urlunparse
@@ -237,6 +237,15 @@ UPSTASH_URL = os.getenv("UPSTASH_REDIS_REST_URL", "").strip().rstrip("/")
 UPSTASH_TOKEN = os.getenv("UPSTASH_REDIS_REST_TOKEN", "").strip()
 STATE_KEY = "wsa:state:v1"
 MAX_EXTRA_PATHS = 5
+# 網域擁有者來信要求排除的網域（逗號分隔，含子網域）；掃描這些網域會直接拒絕
+EXCLUDED_HOSTS = {h.strip().lower().lstrip(".") for h in os.getenv("EXCLUDED_HOSTS", "").split(",") if h.strip()}
+CONTACT_EMAIL = os.getenv("CONTACT_EMAIL", "a112221040@mail.shu.edu.tw")
+PUBLIC_ORIGIN = os.getenv("PUBLIC_ORIGIN", "https://ai-web-security-auditor.onrender.com").rstrip("/")
+
+
+def is_excluded_host(host: str) -> bool:
+    h = host.lower().rstrip(".")
+    return any(h == ex or h.endswith("." + ex) for ex in EXCLUDED_HOSTS)
 
 
 class UsageStats:
@@ -2398,15 +2407,18 @@ async def require_human(request: Request, token: Optional[str], ip: str) -> None
 
 
 OWN_SECURITY_HEADERS = {
+    "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
     "X-Content-Type-Options": "nosniff",
     "X-Frame-Options": "DENY",
     "Referrer-Policy": "strict-origin-when-cross-origin",
     "Permissions-Policy": "camera=(), microphone=(), geolocation=()",
+    "Cross-Origin-Opener-Policy": "same-origin",
+    # 自己的 JS 都在 static/ 檔案裡，script-src 不需要 'unsafe-inline'（我們對別人的要求，自己先做到）
     "Content-Security-Policy": (
-        "default-src 'self'; script-src 'self' 'unsafe-inline' https://static.cloudflareinsights.com https://challenges.cloudflare.com; "
+        "default-src 'self'; script-src 'self' https://static.cloudflareinsights.com https://challenges.cloudflare.com; "
         "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com data:; "
         "img-src 'self' data:; connect-src 'self' https://cloudflareinsights.com; frame-src https://challenges.cloudflare.com; "
-        "frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+        "frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'"
     ),
 }
 
@@ -2463,6 +2475,20 @@ async def favicon():
 @app.get("/og.png")
 async def og_image():
     return FileResponse(BASE_DIR / "static" / "og.png", media_type="image/png", headers={"Cache-Control": "public, max-age=86400"})
+
+
+@app.get("/.well-known/security.txt")
+async def security_txt():
+    """我們要求別人提供的東西，自己也要有（RFC 9116）。"""
+    expires = (datetime.now(timezone.utc) + timedelta(days=365)).strftime("%Y-%m-%dT00:00:00.000Z")
+    body = (
+        f"Contact: mailto:{CONTACT_EMAIL}\n"
+        f"Expires: {expires}\n"
+        "Preferred-Languages: zh-TW, en\n"
+        f"Canonical: {PUBLIC_ORIGIN}/.well-known/security.txt\n"
+        f"Policy: {PUBLIC_ORIGIN}/#footer\n"
+    )
+    return Response(body, media_type="text/plain; charset=utf-8", headers={"Cache-Control": "public, max-age=86400"})
 
 
 @app.api_route("/api/health", methods=["GET", "HEAD"])  # 監控服務常用 HEAD，只開 GET 會回 405 被判成掛掉
@@ -2556,6 +2582,9 @@ async def api_scan(body: ScanRequest, request: Request):
     except ValueError as exc:
         stats.record_scan_outcome(ip, "rejected")
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if is_excluded_host(urlparse(target).hostname or ""):
+        stats.record_scan_outcome(ip, "rejected")
+        raise HTTPException(status_code=400, detail="此網域的擁有者已要求不被本工具檢測")
 
     allowed, retry_after = scan_limiter.hit(ip)
     if not allowed:

@@ -27,6 +27,36 @@ def test_evaluate_merges_cookies_and_secrets_from_extra_pages():
     assert any("/boom" in n for n in rep["details"]["notes"]) and any("/missing" in n for n in rep["details"]["notes"])
 
 
+def test_own_site_hygiene(fresh_state, monkeypatch):
+    """我們要求別人做到的，自己先做到：security.txt、HSTS、COOP、script-src 沒有 'unsafe-inline'、JS 在獨立檔案。"""
+    c = TestClient(m.app)
+    st = c.get("/.well-known/security.txt")
+    assert st.status_code == 200 and "Contact: mailto:a112221040@mail.shu.edu.tw" in st.text and "Expires:" in st.text
+    r = c.get("/")
+    csp = r.headers["content-security-policy"]
+    script_src = next(part for part in csp.split(";") if part.strip().startswith("script-src"))
+    assert "'unsafe-inline'" not in script_src and "object-src 'none'" in csp
+    assert r.headers["strict-transport-security"].startswith("max-age=31536000")
+    assert r.headers["cross-origin-opener-policy"] == "same-origin"
+    assert "<script>" not in r.text and 'src="/static/app.js"' in r.text
+    assert c.get("/static/app.js").status_code == 200 and c.get("/static/stats.js").status_code == 200
+    assert "mailto:a112221040@mail.shu.edu.tw" in r.text and "排除" in r.text
+    # 自我體檢：用 evaluate() 對自己的回應打分，應該是 A 且沒有 csp_weak
+    main_r = fr("https://ai-web-security-auditor.onrender.com/", headers=dict(r.headers), body=r.content)
+    rep = m.evaluate(input_url="https://ai-web-security-auditor.onrender.com/", main=main_r, http_probe=None, js_results=[],
+                     env_result=fr("x", status=404), git_result=fr("x", status=404), security_txt_result=fr("x", body=st.content, headers={"content-type": "text/plain"}))
+    assert rep["grade"] == "A" and rep["score"] == 100, [i["id"] for i in rep["issues"]]
+    assert "csp_weak" not in {i["id"] for i in rep["issues"]}
+
+
+def test_excluded_host(fresh_state, monkeypatch):
+    monkeypatch.setattr(m, "EXCLUDED_HOSTS", {"private.example"})
+    assert m.is_excluded_host("private.example") and m.is_excluded_host("www.private.example") and not m.is_excluded_host("notprivate.example")
+    c = TestClient(m.app)
+    r = c.post("/api/scan", json={"url": "https://app.private.example/", "authorized": True})
+    assert r.status_code == 400 and "擁有者已要求" in r.json()["detail"]
+
+
 def test_badge_route(fresh_state):
     c = TestClient(m.app)
     r = c.get("/badge/nobody.example.svg")
