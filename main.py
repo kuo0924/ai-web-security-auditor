@@ -28,6 +28,7 @@ import ssl
 import sys
 import time
 from collections import defaultdict, deque
+from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -37,6 +38,7 @@ from urllib.parse import urljoin, urlparse, urlunparse
 import httpx
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 try:  # .env 為選配，沒有 python-dotenv 也能跑；明確指向專案目錄，不受啟動時的 cwd 影響
@@ -207,11 +209,34 @@ class DailyBudget:
             "claude_usd_today": round(self.usd, 4), "claude_usd_limit": self.usd_limit,
         }
 
+    def export(self) -> dict[str, Any]:
+        self._roll()
+        return {"day": self.day.isoformat() if self.day else None, "used": self.used, "usd": self.usd}
+
+    def load(self, data: dict[str, Any]) -> None:
+        try:
+            day = datetime.fromisoformat(data["day"]).date() if data.get("day") else None
+            if day == datetime.now(timezone.utc).date():
+                self.day, self.used, self.usd = day, int(data.get("used", 0)), float(data.get("usd", 0.0))
+        except (KeyError, ValueError, TypeError):
+            pass
+
 
 llm_budget = DailyBudget(LLM_DAILY_BUDGET, LLM_DAILY_BUDGET_USD)
+badge_cache: dict[str, dict[str, Any]] = {}  # host -> {"score", "grade", "at"}，只記經授權掃描的結果
 STATS_TOKEN = os.getenv("STATS_TOKEN", "").strip()  # 設了就要帶 ?token= 才能看 /api/stats；留空 = 公開（只有彙總數字）
 # Cloudflare Web Analytics 的 beacon token（公開的站台識別碼，會出現在 HTML 裡，不是機密）；留空 = 不載入分析腳本
 CF_BEACON_TOKEN = os.getenv("CF_BEACON_TOKEN", "").strip()
+# Cloudflare Turnstile 人機驗證：site key 公開、secret 機密。secret 留空 = 不啟用
+TURNSTILE_SITE_KEY = os.getenv("TURNSTILE_SITE_KEY", "").strip()
+TURNSTILE_SECRET_KEY = os.getenv("TURNSTILE_SECRET_KEY", "").strip()
+# 給 CI / 腳本用的 API 金鑰（逗號分隔），帶 X-Api-Key 可跳過 Turnstile（限流仍然算）
+API_KEYS = {k.strip() for k in os.getenv("API_KEYS", "").split(",") if k.strip()}
+# Upstash Redis（REST）：設了就把統計、額度、徽章快取每 60 秒存一份，重啟後還原；留空 = 純記憶體
+UPSTASH_URL = os.getenv("UPSTASH_REDIS_REST_URL", "").strip().rstrip("/")
+UPSTASH_TOKEN = os.getenv("UPSTASH_REDIS_REST_TOKEN", "").strip()
+STATE_KEY = "wsa:state:v1"
+MAX_EXTRA_PATHS = 5
 
 
 class UsageStats:
@@ -276,7 +301,7 @@ class UsageStats:
         out = {k: v for k, v in b.items() if k not in ("ips", "scan_ms_sum", "platforms")}
         out["unique_ips"] = len(b["ips"])
         out["avg_scan_ms"] = round(b["scan_ms_sum"] / b["scans"]) if b["scans"] else None
-        out["top_platforms"] = sorted(b["platforms"].items(), key=lambda kv: -kv[1])[:5]
+        out["top_platforms"] = [[k, v] for k, v in sorted(b["platforms"].items(), key=lambda kv: -kv[1])[:5]]
         return out
 
     def snapshot(self) -> dict[str, Any]:
@@ -288,11 +313,90 @@ class UsageStats:
             "since_start": self._view(self.total),
             "daily": [{"date": d, "scans": b["scans"], "consults": b["consults"], "unique_ips": len(b["ips"])} for d, b in sorted(self.days.items())],
             "llm_budget": llm_budget.status(),
-            "note": "記憶體統計，服務重啟或重新部署會歸零；不記錄目標網址",
+            "persistence": "upstash" if UPSTASH_URL and UPSTASH_TOKEN else "memory",
+            "note": "不記錄目標網址" + ("；統計每 60 秒存到 Upstash，重啟後保留" if UPSTASH_URL and UPSTASH_TOKEN else "；記憶體統計，服務重啟或重新部署會歸零"),
         }
+
+    @staticmethod
+    def _dump(b: dict[str, Any]) -> dict[str, Any]:
+        return {**{k: v for k, v in b.items() if k != "ips"}, "ips": sorted(b["ips"])[:5000]}
+
+    @classmethod
+    def _undump(cls, d: dict[str, Any]) -> dict[str, Any]:
+        b = cls._blank()
+        for k in b:
+            if k == "ips":
+                b["ips"] = set(d.get("ips") or [])
+            elif k in ("grades", "platforms"):
+                b[k] = {**b[k], **(d.get(k) or {})}
+            else:
+                b[k] = d.get(k, b[k])
+        return b
+
+    def export(self) -> dict[str, Any]:
+        return {"started_at": self.started_at.isoformat(), "days": {k: self._dump(v) for k, v in self.days.items()}, "total": self._dump(self.total)}
+
+    def load(self, data: dict[str, Any]) -> None:
+        try:
+            self.started_at = datetime.fromisoformat(data["started_at"])
+            self.days = {k: self._undump(v) for k, v in (data.get("days") or {}).items()}
+            self.total = self._undump(data.get("total") or {})
+        except (KeyError, ValueError, TypeError) as exc:
+            log.warning("統計狀態載入失敗，改用空白：%s", exc)
 
 
 stats = UsageStats()
+
+
+# ---------------------------------------------------------------------------
+# 持久化：把統計、額度、徽章快取整包存到 Upstash Redis（REST），60 秒一次 + 關機時
+# ---------------------------------------------------------------------------
+async def kv_command(*cmd: Any) -> Any:
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        r = await client.post(UPSTASH_URL, headers={"Authorization": f"Bearer {UPSTASH_TOKEN}"}, json=list(cmd))
+        r.raise_for_status()
+        return r.json().get("result")
+
+
+def export_state() -> dict[str, Any]:
+    return {"saved_at": datetime.now(timezone.utc).isoformat(), "stats": stats.export(), "budget": llm_budget.export(), "badges": badge_cache}
+
+
+def import_state(data: dict[str, Any]) -> None:
+    stats.load(data.get("stats") or {})
+    llm_budget.load(data.get("budget") or {})
+    badge_cache.update({k: v for k, v in (data.get("badges") or {}).items() if isinstance(v, dict)})
+
+
+async def save_state() -> bool:
+    if not (UPSTASH_URL and UPSTASH_TOKEN):
+        return False
+    try:
+        await kv_command("SET", STATE_KEY, json.dumps(export_state(), ensure_ascii=False))
+        return True
+    except Exception as exc:
+        log.warning("狀態存檔失敗：%s", exc)
+        return False
+
+
+async def load_state() -> bool:
+    if not (UPSTASH_URL and UPSTASH_TOKEN):
+        return False
+    try:
+        raw = await kv_command("GET", STATE_KEY)
+        if raw:
+            import_state(json.loads(raw))
+            log.info("已從 Upstash 還原統計狀態（存於 %s）", json.loads(raw).get("saved_at"))
+        return True
+    except Exception as exc:
+        log.warning("狀態載入失敗：%s", exc)
+        return False
+
+
+async def persist_loop() -> None:
+    while True:
+        await asyncio.sleep(60)
+        await save_state()
 
 
 def _is_public_ip(value: str) -> bool:
@@ -1396,6 +1500,7 @@ def evaluate(
     sourcemap_results: list[tuple[str, FetchResult | Exception | str]] | None = None,
     security_txt_result: FetchResult | Exception | None = None,
     dns_info: dict[str, Any] | None = None,
+    extra_pages: list[tuple[str, FetchResult | Exception]] | None = None,
 ) -> dict[str, Any]:
     """純函式：把抓回來的資料轉成計分報告（不做任何網路 I/O，方便單元測試）。"""
     t0 = time.perf_counter()
@@ -1409,6 +1514,12 @@ def evaluate(
     host_for_probe = final.hostname or ""
     env_variant_results = env_variant_results or []
     sourcemap_results = sourcemap_results or []
+    extra_pages = extra_pages or []
+    for path, res in extra_pages:
+        if isinstance(res, Exception):
+            notes.append(f"額外頁面 {path} 無法讀取（{type(res).__name__}），已略過")
+        elif res.status >= 400:
+            notes.append(f"額外頁面 {path} 回應 HTTP {res.status}，只分析了它的標頭與 Cookie")
 
     # --- 1. HTTPS 強制 ---
     input_scheme = urlparse(input_url).scheme
@@ -1488,6 +1599,9 @@ def evaluate(
 
     # --- 2b. 進階：混合內容、版本洩漏、TLS 憑證 ---
     mixed = mixed_content(html, final.scheme)
+    for path, res in extra_pages:
+        if isinstance(res, FetchResult) and res.status < 400:
+            mixed.extend(f"{path}: {x}" for x in mixed_content(res.text(), urlparse(res.url).scheme))
     if mixed:
         issues.append(make_issue("mixed_content", tech, "；".join(mixed)))
     elif final.scheme == "https":
@@ -1506,12 +1620,24 @@ def evaluate(
             passed.append(make_pass("tls_cert", "TLS 憑證有效", f"有效至 {expires}（剩 {days:.0f} 天）"))
 
     # --- 3. Cookie ---
-    cookies = [parse_cookie(c) for c in main.set_cookies]
+    cookie_sources: list[tuple[str, str]] = [("/", raw) for raw in main.set_cookies]
+    for path, res in extra_pages:
+        if isinstance(res, FetchResult):
+            cookie_sources.extend((path, raw) for raw in res.set_cookies)
+    cookies: list[dict[str, Any]] = []
+    seen_cookie: set[tuple[str, str]] = set()
+    for path, raw in cookie_sources:
+        c = parse_cookie(raw)
+        if (path, c["name"]) in seen_cookie:
+            continue
+        seen_cookie.add((path, c["name"]))
+        c["label"] = c["name"] if path == "/" else f"{c['name']}（{path}）"
+        cookies.append(c)
     if not cookies:
-        passed.append(make_pass("cookie", "Cookie 安全屬性", "此頁面沒有設置任何 Cookie，無此風險"))
+        passed.append(make_pass("cookie", "Cookie 安全屬性", "掃描的頁面沒有設置任何 Cookie，無此風險" if extra_pages else "此頁面沒有設置任何 Cookie，無此風險（登入頁通常才有，可在進階選項加掃 /login）"))
     else:
-        no_httponly = [c["name"] for c in cookies if not c["httponly"]]
-        no_secure = [c["name"] for c in cookies if not c["secure"]]
+        no_httponly = [c["label"] for c in cookies if not c["httponly"]]
+        no_secure = [c["label"] for c in cookies if not c["secure"]]
         if no_httponly:
             issues.append(make_issue("cookie_httponly", tech, "缺少 HttpOnly 的 Cookie：" + ", ".join(no_httponly[:8])))
         if no_secure:
@@ -1522,7 +1648,7 @@ def evaluate(
             passed.append(make_pass("cookie_httponly", "Cookie HttpOnly", f"共 {len(cookies)} 個 Cookie 都具備 HttpOnly"))
         elif not no_secure:
             passed.append(make_pass("cookie_secure", "Cookie Secure", f"共 {len(cookies)} 個 Cookie 都具備 Secure"))
-        no_samesite = [c["name"] for c in cookies if not c["samesite"]]
+        no_samesite = [c["label"] for c in cookies if not c["samesite"]]
         if no_samesite:
             issues.append(make_issue("cookie_samesite", tech, "缺少 SameSite 的 Cookie：" + ", ".join(no_samesite[:8])))
         else:
@@ -1530,6 +1656,9 @@ def evaluate(
 
     # --- 4. 前端金鑰外洩 ---
     sources: list[tuple[str, str]] = [("首頁 HTML", html)]
+    for path, res in extra_pages:
+        if isinstance(res, FetchResult) and res.status < 400:
+            sources.append((f"頁面 {path}", res.text()))
     js_scanned: list[str] = []
     for js_url, result in js_results:
         if isinstance(result, FetchResult) and result.status == 200:
@@ -1661,6 +1790,7 @@ def evaluate(
         "details": {
             "redirect_chain": main.hops,
             "js_files_scanned": js_scanned,
+            "extra_pages": [{"path": p, "status": (r.status if isinstance(r, FetchResult) else None), "error": (type(r).__name__ if isinstance(r, Exception) else None)} for p, r in extra_pages],
             "engine_ms": round((time.perf_counter() - t0) * 1000, 2),
             "html_bytes": len(main.body),
             "notes": notes,
@@ -1668,8 +1798,21 @@ def evaluate(
     }
 
 
-async def run_scan(input_url: str) -> dict[str, Any]:
+def normalize_extra_paths(paths: list[str]) -> list[str]:
+    """使用者自填的額外路徑：只接受 / 開頭的站內路徑，最多 MAX_EXTRA_PATHS 個。"""
+    out: list[str] = []
+    for raw in paths:
+        p = (raw or "").strip()
+        if not p or p == "/" or not p.startswith("/") or p.startswith("//") or "://" in p or any(ch.isspace() for ch in p) or len(p) > 200:
+            continue
+        if p not in out:
+            out.append(p)
+    return out[:MAX_EXTRA_PATHS]
+
+
+async def run_scan(input_url: str, extra_paths: list[str] | None = None) -> dict[str, Any]:
     t_start = time.perf_counter()
+    extra_paths = normalize_extra_paths(extra_paths or [])
     async with httpx.AsyncClient(
         timeout=REQUEST_TIMEOUT,
         follow_redirects=False,
@@ -1693,6 +1836,8 @@ async def run_scan(input_url: str) -> dict[str, Any]:
         tasks.append(safe_fetch(client, origin + "/.git/config", max_bytes=MAX_PROBE_BYTES, follow_redirects=False))
         tasks.append(safe_fetch(client, origin + "/.well-known/security.txt", max_bytes=MAX_PROBE_BYTES, follow_redirects=False))
         tasks.append(email_dns_check(client, final.hostname or ""))
+        for path in extra_paths:
+            tasks.append(safe_fetch(client, origin + path, max_bytes=MAX_HTML_BYTES))
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
         idx = 0
@@ -1709,6 +1854,8 @@ async def run_scan(input_url: str) -> dict[str, Any]:
         idx += 3
         git_result, security_txt_result, dns_result = results[idx], results[idx + 1], results[idx + 2]
         dns_info = dns_result if isinstance(dns_result, dict) else None
+        idx += 3
+        extra_pages = list(zip(extra_paths, results[idx: idx + len(extra_paths)]))
 
         # 第二輪：站內 JS 若宣告了 source map，各多抓一次（只抓同源的 .map）
         sourcemap_results: list[tuple[str, FetchResult | Exception | str]] = []
@@ -1728,7 +1875,7 @@ async def run_scan(input_url: str) -> dict[str, Any]:
         input_url=input_url, main=main, http_probe=http_probe,
         js_results=js_results, env_result=env_result, git_result=git_result,
         env_variant_results=env_variant_results, sourcemap_results=sourcemap_results,
-        security_txt_result=security_txt_result, dns_info=dns_info,
+        security_txt_result=security_txt_result, dns_info=dns_info, extra_pages=extra_pages,
     )
     fetches = [r for r in results if not isinstance(r, dict)] + [r for _, r in sourcemap_results if r != "inline"]
     requests_made = main.requests_made + sum(
@@ -2188,12 +2335,27 @@ async def answer_followup(scan: dict[str, Any], question: str, history: list[dic
 # ---------------------------------------------------------------------------
 # 7. FastAPI 應用
 # ---------------------------------------------------------------------------
-app = FastAPI(title="AI Web Security Auditor", version="1.0.0", docs_url=None, redoc_url=None)
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    await load_state()
+    task = asyncio.create_task(persist_loop()) if (UPSTASH_URL and UPSTASH_TOKEN) else None
+    try:
+        yield
+    finally:
+        if task:
+            task.cancel()
+        await save_state()
+
+
+app = FastAPI(title="AI Web Security Auditor", version="1.0.0", docs_url=None, redoc_url=None, lifespan=lifespan)
+app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
 
 
 class ScanRequest(BaseModel):
     url: str = Field(..., max_length=2048)
     authorized: bool = False
+    paths: list[str] = Field(default_factory=list, max_length=MAX_EXTRA_PATHS)
+    turnstile_token: Optional[str] = Field(None, max_length=4096)
 
 
 class ChatTurn(BaseModel):
@@ -2205,6 +2367,34 @@ class ConsultRequest(BaseModel):
     scan: dict[str, Any]
     question: Optional[str] = Field(None, max_length=2000)
     history: list[ChatTurn] = Field(default_factory=list, max_length=12)
+    turnstile_token: Optional[str] = Field(None, max_length=4096)
+
+
+async def verify_turnstile(token: str, ip: str) -> bool:
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        r = await client.post(
+            "https://challenges.cloudflare.com/turnstile/v0/siteverify",
+            data={"secret": TURNSTILE_SECRET_KEY, "response": token, "remoteip": ip},
+        )
+        return bool(r.status_code == 200 and r.json().get("success"))
+
+
+async def require_human(request: Request, token: Optional[str], ip: str) -> None:
+    """Turnstile 啟用時，掃描與 AI 顧問都要帶有效 token；帶合法 X-Api-Key 的自動化呼叫可跳過。"""
+    if not TURNSTILE_SECRET_KEY:
+        return
+    api_key = request.headers.get("x-api-key", "")
+    if api_key and api_key in API_KEYS:
+        return
+    if not token:
+        raise HTTPException(status_code=403, detail="需要完成人機驗證，請重新整理頁面再試")
+    try:
+        ok = await verify_turnstile(token, ip)
+    except Exception as exc:
+        log.warning("Turnstile 驗證服務錯誤：%s", exc)
+        ok = False
+    if not ok:
+        raise HTTPException(status_code=403, detail="人機驗證失敗，請重新整理頁面再試")
 
 
 OWN_SECURITY_HEADERS = {
@@ -2213,9 +2403,10 @@ OWN_SECURITY_HEADERS = {
     "Referrer-Policy": "strict-origin-when-cross-origin",
     "Permissions-Policy": "camera=(), microphone=(), geolocation=()",
     "Content-Security-Policy": (
-        "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://static.cloudflareinsights.com; "
+        "default-src 'self'; script-src 'self' 'unsafe-inline' https://static.cloudflareinsights.com https://challenges.cloudflare.com; "
         "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com data:; "
-        "img-src 'self' data:; connect-src 'self' https://cloudflareinsights.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+        "img-src 'self' data:; connect-src 'self' https://cloudflareinsights.com; frame-src https://challenges.cloudflare.com; "
+        "frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
     ),
 }
 
@@ -2292,7 +2483,47 @@ async def health(request: Request):
         "key_lengths": {"anthropic": len(ANTHROPIC_API_KEY), "openai": len(OPENAI_API_KEY)},
         "knowledge_docs": len(KB.docs),
         "scan_rate_limit_per_min": SCAN_RATE_LIMIT[0],
+        "turnstile_site_key": TURNSTILE_SITE_KEY if TURNSTILE_SECRET_KEY else "",
+        "persistence": "upstash" if UPSTASH_URL and UPSTASH_TOKEN else "memory",
+        "max_extra_paths": MAX_EXTRA_PATHS,
     }
+
+
+BADGE_COLORS = {"A": "#10b981", "B": "#6366f1", "C": "#f59e0b", "F": "#f43f5e"}
+
+
+def badge_svg(label: str, value: str, color: str) -> str:
+    lw, vw = 7 * len(label) + 12, 7 * len(value) + 12
+    w = lw + vw
+    return (
+        f'<svg xmlns="http://www.w3.org/2000/svg" width="{w}" height="20" role="img" aria-label="{label}: {value}">'
+        f'<linearGradient id="s" x2="0" y2="100%"><stop offset="0" stop-color="#bbb" stop-opacity=".1"/><stop offset="1" stop-opacity=".1"/></linearGradient>'
+        f'<clipPath id="r"><rect width="{w}" height="20" rx="3" fill="#fff"/></clipPath>'
+        f'<g clip-path="url(#r)"><rect width="{lw}" height="20" fill="#1e293b"/><rect x="{lw}" width="{vw}" height="20" fill="{color}"/><rect width="{w}" height="20" fill="url(#s)"/></g>'
+        f'<g fill="#fff" text-anchor="middle" font-family="Verdana,Geneva,DejaVu Sans,sans-serif" font-size="11">'
+        f'<text x="{lw / 2}" y="15" fill="#010101" fill-opacity=".3">{label}</text><text x="{lw / 2}" y="14">{label}</text>'
+        f'<text x="{lw + vw / 2}" y="15" fill="#010101" fill-opacity=".3">{value}</text><text x="{lw + vw / 2}" y="14">{value}</text></g></svg>'
+    )
+
+
+@app.get("/badge/{host}")
+async def badge(host: str):
+    """A 級徽章：只顯示經授權掃描過、7 天內的結果；沒掃過就是灰色的「not scanned」。"""
+    h = host.lower().removesuffix(".svg")
+    if not re.fullmatch(r"[a-z0-9.-]{1,253}", h):
+        raise HTTPException(status_code=400, detail="host 格式錯誤")
+    entry = badge_cache.get(h)
+    fresh = False
+    if entry:
+        try:
+            fresh = (datetime.now(timezone.utc) - datetime.fromisoformat(entry["at"])).days < 7
+        except (KeyError, ValueError):
+            fresh = False
+    if entry and fresh:
+        svg = badge_svg("web security", f"{entry['grade']} · {entry['score']}/100", BADGE_COLORS.get(entry["grade"], "#6b7280"))
+    else:
+        svg = badge_svg("web security", "not scanned", "#6b7280")
+    return Response(svg, media_type="image/svg+xml", headers={"Cache-Control": "public, max-age=3600"})
 
 
 @app.get("/api/whoami")
@@ -2334,8 +2565,9 @@ async def api_scan(body: ScanRequest, request: Request):
             detail=f"每分鐘最多檢測 {SCAN_RATE_LIMIT[0]} 次，請 {retry_after} 秒後再試",
             headers={"Retry-After": str(retry_after)},
         )
+    await require_human(request, body.turnstile_token, ip)
 
-    log.info("scan %s -> %s", ip, urlparse(target).hostname)
+    log.info("scan %s -> %s%s", ip, urlparse(target).hostname, f" (+{len(body.paths)} paths)" if body.paths else "")
     # 使用者沒打協定時先試 https://，連不上再退回 http://（結果會如實反映該站沒有 HTTPS）
     candidates = [target]
     if "://" not in body.url.strip():
@@ -2344,8 +2576,11 @@ async def api_scan(body: ScanRequest, request: Request):
     try:
         for candidate in candidates:
             try:
-                report = await run_scan(candidate)
+                report = await run_scan(candidate, body.paths)
                 stats.record_scan(ip, report)
+                host = (report.get("target") or {}).get("hostname")
+                if host:
+                    badge_cache[host] = {"score": report["score"], "grade": report["grade"], "at": report["scanned_at"]}
                 return report
             except TargetUnreachable as exc:
                 last_error = exc
@@ -2375,6 +2610,7 @@ async def api_ai_consult(body: ConsultRequest, request: Request):
         )
     if not body.scan.get("issues") and not body.scan.get("passed"):
         raise HTTPException(status_code=400, detail="請先完成一次網站體檢")
+    await require_human(request, body.turnstile_token, ip)
     if body.question and body.question.strip():
         history = [t.model_dump() for t in body.history]
         result = await answer_followup(body.scan, body.question.strip(), history)

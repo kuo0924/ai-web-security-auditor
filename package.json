@@ -1,0 +1,12 @@
+{
+  "name": "ai-web-security-auditor",
+  "private": true,
+  "version": "1.0.0",
+  "scripts": {
+    "css": "tailwindcss -i ./src/tailwind.css -o ./static/tailwind.css --minify",
+    "css:watch": "tailwindcss -i ./src/tailwind.css -o ./static/tailwind.css --watch"
+  },
+  "devDependencies": {
+    "tailwindcss": "^3.4.17"
+  }
+}

@@ -1,0 +1,53 @@
+# 部署後自動做網站安全體檢，分數低於門檻就讓 CI 失敗。
+# 複製到你自己專案的 .github/workflows/security-audit.yml，改 SITE_URL 與 MIN_SCORE。
+#
+# 需要的 secret（GitHub → Settings → Secrets → Actions）：
+#   WSA_API_KEY：體檢儀管理者在 Render 環境變數 API_KEYS 裡設定的其中一把（用來跳過人機驗證；限流仍然適用）
+#
+# 注意：你只能對自己擁有或已取得授權的網站做這件事。
+
+name: Security audit
+
+on:
+  deployment_status:          # Vercel / Netlify 等平台部署完成時
+  schedule:
+    - cron: "0 3 * * 1"       # 每週一 03:00 UTC 也跑一次
+  workflow_dispatch:
+
+env:
+  AUDITOR: https://ai-web-security-auditor.onrender.com
+  SITE_URL: https://your-app.vercel.app
+  MIN_SCORE: "85"
+
+jobs:
+  audit:
+    if: github.event_name != 'deployment_status' || github.event.deployment_status.state == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Run passive security audit
+        id: scan
+        run: |
+          set -euo pipefail
+          resp=$(curl -sS -X POST "$AUDITOR/api/scan" \
+            -H "Content-Type: application/json" \
+            -H "X-Api-Key: ${{ secrets.WSA_API_KEY }}" \
+            -d "{\"url\": \"$SITE_URL\", \"authorized\": true, \"paths\": [\"/login\"]}")
+          echo "$resp" > report.json
+          score=$(echo "$resp" | jq -r '.score // empty')
+          grade=$(echo "$resp" | jq -r '.grade // empty')
+          if [ -z "$score" ]; then echo "掃描失敗：$(echo "$resp" | jq -r '.detail // .')"; exit 1; fi
+          echo "score=$score" >> "$GITHUB_OUTPUT"
+          echo "## 網站安全體檢：$score 分（$grade）" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "$resp" | jq -r '.issues[] | select(.penalty > 0) | "- **\(.title)** −\(.penalty)：\(.evidence)"' >> "$GITHUB_STEP_SUMMARY"
+          echo "$resp" | jq -r '.issues[] | select(.penalty == 0) | "- 建議：\(.title)"' >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload full report
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-report
+          path: report.json
+      - name: Enforce minimum score
+        run: |
+          if [ "${{ steps.scan.outputs.score }}" -lt "$MIN_SCORE" ]; then
+            echo "分數 ${{ steps.scan.outputs.score }} 低於門檻 $MIN_SCORE"; exit 1
+          fi

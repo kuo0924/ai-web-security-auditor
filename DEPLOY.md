@@ -96,6 +96,18 @@ Render 免費方案在 15 分鐘沒人用之後會休眠，下一個人打開要
 - Render 後台 → Logs 搜 `scan ` 可以看到每一筆「來源 IP → 目標網域」，免費方案保留 7 天。
 - **訪客統計（Cloudflare Web Analytics，免費、無 cookie、不用改 DNS）**：到 dash.cloudflare.com 註冊 → 左側 Analytics & Logs → Web Analytics → Add a site → 填 `ai-web-security-auditor.onrender.com` → 它會給一段 `<script … data-cf-beacon='{"token": "…"}'>`，把 token 的值填到 Render 環境變數 `CF_BEACON_TOKEN`，儲存後自動重新部署，首頁與 /stats 就會載入 beacon。token 是公開的站台識別碼，會出現在 HTML 裡，不是機密。之後在 Cloudflare 的 Web Analytics 頁看訪客數、來源國家、瀏覽頁面、載入速度。
 
+### 選配：三個免費服務讓它更耐用
+
+都是到 Render 後台 → 服務 → Environment 加變數，儲存後自動重新部署。沒設就維持原本行為。
+
+| 想要什麼 | 去哪裡拿 | 填哪些變數 |
+|---|---|---|
+| 擋腳本刷 AI 額度（Turnstile） | dash.cloudflare.com → Turnstile → Add widget，Hostname 填 `ai-web-security-auditor.onrender.com`，Widget mode 選 Managed 或 Invisible | `TURNSTILE_SITE_KEY`（公開，可放 render.yaml）、`TURNSTILE_SECRET_KEY`（機密，只放 Render） |
+| 給 CI 或腳本呼叫 | 自己產一串隨機長字串，例如 PowerShell `[guid]::NewGuid().ToString("N")` | `API_KEYS`（多把用逗號分隔） |
+| 統計、額度、徽章重啟不歸零 | upstash.com → Create Database（Redis，Free，選離 Render Oregon 近的區域）→ REST API 分頁 | `UPSTASH_REDIS_REST_URL`、`UPSTASH_REDIS_REST_TOKEN` |
+
+設好後 `/api/health` 會顯示 `"turnstile_site_key"` 與 `"persistence": "upstash"`。
+
 ### 運維
 
 - **在 Render 貼金鑰時**：只貼金鑰本身，別貼到指令文字；貼完到 `https://<網址>/api/health` 看 `key_lengths`，Claude 金鑰應為 108、Gemini 為 53。貼錯時到 Environment → Edit 重貼，Save 後會自動重新部署。

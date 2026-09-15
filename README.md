@@ -108,6 +108,23 @@ python -m pytest -q
 | `GET` | `/api/health` | 目前 LLM 供應商、每日額度用量、金鑰長度（供部署確認） |
 | `GET` | `/stats` | 給人看的使用量頁面 |
 | `GET` | `/api/sample` | 範例報告（虛構網站 demo-shop.vercel.app，含預先產生的 AI 顧問結果），首頁「看範例報告」用 |
+| `GET` | `/badge/{host}.svg` | 徽章：顯示該網域 7 天內最近一次授權掃描的評等，沒掃過就是灰色 not scanned |
+
+`POST /api/scan` 的完整參數：`{"url": "...", "authorized": true, "paths": ["/login", "/dashboard"], "turnstile_token": "..."}`。`paths` 最多 5 個站內路徑，會一併抓取並合併 Cookie、金鑰、混合內容檢查（登入頁通常才會設 Cookie）。`turnstile_token` 只在部署端啟用 Turnstile 時需要；帶 `X-Api-Key` 標頭（值在 `API_KEYS` 環境變數裡）的自動化呼叫可跳過。
+
+### 在 CI 裡自動體檢
+
+[examples/github-actions-security-audit.yml](examples/github-actions-security-audit.yml) 是可直接複製的 GitHub Actions 範例：部署完成或每週自動掃描自己的網站，分數低於門檻就讓 CI 失敗，完整報告會附在 job summary 與 artifact。需要在體檢儀的 `API_KEYS` 設一把金鑰並放進 repo 的 secret。
+
+### 徽章
+
+掃描後按「取得徽章」會給 Markdown 與 HTML 片段：
+
+```markdown
+[![Web Security](https://ai-web-security-auditor.onrender.com/badge/your-app.vercel.app.svg)](https://ai-web-security-auditor.onrender.com/?url=your-app.vercel.app)
+```
+
+徽章只反映經授權掃描的結果，任何人都無法用徽章網址觸發掃描。
 | `GET` | `/api/stats` | 使用量彙總：今日與啟動以來的掃描數、AI 顧問數、不重複 IP、評等分布、常見平台、最近 7 天每日數。不含目標網址。設 `STATS_TOKEN` 後需帶 `?token=` |
 | `GET` | `/api/whoami` | 回報呼叫者被辨識成哪個 IP（確認反向代理設定） |
 | `POST` | `/api/knowledge/reload` | 編輯 `knowledge/` 後不重啟即生效 |
@@ -136,4 +153,8 @@ python -m pytest -q
 | `SCAN_RATE_LIMIT` | 3 | 每 IP 每分鐘掃描上限 |
 | `TRUST_PROXY` | 0 | 反向代理後設 1，從 X-Forwarded-For 最右側取真實 IP |
 
-正式環境可再把 Tailwind CDN 換成本地建置的 CSS；多進程部署時限流要改用 Redis。
+| `TURNSTILE_SITE_KEY` / `TURNSTILE_SECRET_KEY` | 空 | Cloudflare Turnstile 人機驗證，secret 有值才啟用；掃描與 AI 顧問都要通過 |
+| `API_KEYS` | 空 | 逗號分隔的金鑰，帶 `X-Api-Key` 可跳過 Turnstile（給 CI 用） |
+| `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN` | 空 | 設了就把統計、每日額度、徽章快取每 60 秒存到 Upstash，重啟不歸零 |
+
+前端 CSS 由 Tailwind 本地建置（`npm install` 後 `npm run css`），成品 `static/tailwind.css` 已進版控，部署端不需要 Node。改了 HTML 的 class 記得重新建置。
