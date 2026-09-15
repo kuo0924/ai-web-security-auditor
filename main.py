@@ -36,7 +36,7 @@ from urllib.parse import urljoin, urlparse, urlunparse
 
 import httpx
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
 from pydantic import BaseModel, Field
 
 try:  # .env 為選配，沒有 python-dotenv 也能跑；明確指向專案目錄，不受啟動時的 cwd 影響
@@ -210,6 +210,8 @@ class DailyBudget:
 
 llm_budget = DailyBudget(LLM_DAILY_BUDGET, LLM_DAILY_BUDGET_USD)
 STATS_TOKEN = os.getenv("STATS_TOKEN", "").strip()  # 設了就要帶 ?token= 才能看 /api/stats；留空 = 公開（只有彙總數字）
+# Cloudflare Web Analytics 的 beacon token（公開的站台識別碼，會出現在 HTML 裡，不是機密）；留空 = 不載入分析腳本
+CF_BEACON_TOKEN = os.getenv("CF_BEACON_TOKEN", "").strip()
 
 
 class UsageStats:
@@ -2097,11 +2099,23 @@ OWN_SECURITY_HEADERS = {
     "Referrer-Policy": "strict-origin-when-cross-origin",
     "Permissions-Policy": "camera=(), microphone=(), geolocation=()",
     "Content-Security-Policy": (
-        "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com; "
+        "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://static.cloudflareinsights.com; "
         "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com data:; "
-        "img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+        "img-src 'self' data:; connect-src 'self' https://cloudflareinsights.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
     ),
 }
+
+
+def render_page(filename: str, request: Request) -> Response:
+    """讀靜態頁並在 <!--CF_BEACON--> 注入 Cloudflare Web Analytics 腳本（有設 token 才注入）。"""
+    if request.method == "HEAD":
+        return Response(status_code=200, media_type="text/html; charset=utf-8")
+    html = (BASE_DIR / filename).read_text(encoding="utf-8")
+    beacon = ""
+    if CF_BEACON_TOKEN:
+        token = json.dumps(CF_BEACON_TOKEN)  # 逸出成 JSON 字串，避免 token 內容破壞屬性
+        beacon = f"<script defer src=\"https://static.cloudflareinsights.com/beacon.min.js\" data-cf-beacon='{{\"token\": {token}}}'></script>"
+    return HTMLResponse(html.replace("<!--CF_BEACON-->", beacon))
 
 
 @app.middleware("http")
@@ -2119,14 +2133,14 @@ async def unhandled(request: Request, exc: Exception):
 
 
 @app.api_route("/", methods=["GET", "HEAD"])
-async def index():
-    return FileResponse(INDEX_HTML, media_type="text/html; charset=utf-8")
+async def index(request: Request):
+    return render_page("index.html", request)
 
 
 @app.api_route("/stats", methods=["GET", "HEAD"])
-async def stats_page():
+async def stats_page(request: Request):
     """給人看的使用量頁面（資料來自 /api/stats）。"""
-    return FileResponse(BASE_DIR / "stats.html", media_type="text/html; charset=utf-8")
+    return render_page("stats.html", request)
 
 
 @app.api_route("/api/health", methods=["GET", "HEAD"])  # 監控服務常用 HEAD，只開 GET 會回 405 被判成掛掉

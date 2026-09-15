@@ -94,6 +94,7 @@ Render 免費方案在 15 分鐘沒人用之後會休眠，下一個人打開要
 - 原始 JSON：`https://ai-web-security-auditor.onrender.com/api/stats`：今日與啟動以來的掃描數、AI 顧問數、不重複來源 IP、A/B/C/F 分布、最常見的平台、最近 7 天每日數。存在記憶體，重新部署會歸零；UptimeRobot 的探測不會被算進去。
 - 想不公開這個數字，在 Render 環境變數加 `STATS_TOKEN=隨便一串`，之後要帶 `?token=那串` 才看得到。
 - Render 後台 → Logs 搜 `scan ` 可以看到每一筆「來源 IP → 目標網域」，免費方案保留 7 天。
+- **訪客統計（Cloudflare Web Analytics，免費、無 cookie、不用改 DNS）**：到 dash.cloudflare.com 註冊 → 左側 Analytics & Logs → Web Analytics → Add a site → 填 `ai-web-security-auditor.onrender.com` → 它會給一段 `<script … data-cf-beacon='{"token": "…"}'>`，把 token 的值填到 Render 環境變數 `CF_BEACON_TOKEN`，儲存後自動重新部署，首頁與 /stats 就會載入 beacon。token 是公開的站台識別碼，會出現在 HTML 裡，不是機密。之後在 Cloudflare 的 Web Analytics 頁看訪客數、來源國家、瀏覽頁面、載入速度。
 
 ### 運維
 
