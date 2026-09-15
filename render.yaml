@@ -46,3 +46,6 @@ services:
       # 全站每日 AI 顧問呼叫上限，用完自動降級成規則模式，隔天恢復；保護你的金鑰額度
       - key: LLM_DAILY_BUDGET
         value: "300"
+      # Cloudflare Web Analytics 的 beacon token：公開的站台識別碼（會出現在網頁原始碼），不是機密
+      - key: CF_BEACON_TOKEN
+        value: "4723919062344174b2f9c55b7cafbbb9"

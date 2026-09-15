@@ -2114,7 +2114,7 @@ def render_page(filename: str, request: Request) -> Response:
     beacon = ""
     if CF_BEACON_TOKEN:
         token = json.dumps(CF_BEACON_TOKEN)  # 逸出成 JSON 字串，避免 token 內容破壞屬性
-        beacon = f"<script defer src=\"https://static.cloudflareinsights.com/beacon.min.js\" data-cf-beacon='{{\"token\": {token}}}'></script>"
+        beacon = f"<script type=\"module\" src=\"https://static.cloudflareinsights.com/beacon.min.js\" data-cf-beacon='{{\"token\": {token}}}'></script>"
     return HTMLResponse(html.replace("<!--CF_BEACON-->", beacon))
 
 
