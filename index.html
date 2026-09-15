@@ -4,6 +4,14 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>網站安全體檢儀</title>
+  <meta name="description" content="被動式網站安全檢測 + AI 資安顧問。輸入網址，30 秒找出金鑰外洩、.env 裸露、缺少的安全標頭，並直接產出可貼給 Cursor / Claude 的修復 Prompt。給用 AI 工具搭站的人。">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="網站安全體檢儀 · 30 秒看懂你的網站少了哪幾道門">
+  <meta property="og:description" content="被動、零侵入的網站安全檢測，附 AI 資安顧問與可直接貼給 Cursor 的修復 Prompt。">
+  <meta property="og:image" content="https://ai-web-security-auditor.onrender.com/og.png">
+  <meta property="og:url" content="https://ai-web-security-auditor.onrender.com/">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@600;700&family=Noto+Sans+TC:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
   <script src="https://cdn.tailwindcss.com"></script>
@@ -45,6 +53,15 @@
     #score-bar { transition: width .9s cubic-bezier(.2,.8,.2,1), background-color .4s; }
     input::placeholder, textarea::placeholder { color: #475569; }
     .tick { position: absolute; top: -3px; width: 1px; height: 14px; background: #334155; }
+    @media print {
+      body { background: #fff !important; }
+      * { background: transparent !important; color: #111 !important; border-color: #bbb !important; box-shadow: none !important; }
+      header, form, #banner, #history, #chat, #chat-input, #chat-send, .no-print, button { display: none !important; }
+      pre { white-space: pre-wrap; border: 1px solid #ccc; }
+      main { max-width: none; padding: 0; }
+      section { break-inside: avoid; }
+      #score-bar { background: #444 !important; }
+    }
   </style>
 </head>
 <body class="min-h-screen antialiased font-sans">
@@ -108,12 +125,18 @@
             class="flex-1 bg-transparent border hair rounded px-4 py-3 font-mono text-sm text-slate-100 focus:outline-none focus:border-indigo-400">
           <button id="submit" type="submit" disabled
             class="rounded px-6 py-3 text-sm font-medium bg-indigo-500 hover:bg-indigo-400 text-white disabled:opacity-30 disabled:cursor-not-allowed transition-colors">開始體檢 →</button>
+          <button id="sample" type="button"
+            class="rounded px-4 py-3 text-sm font-medium border hair text-slate-300 hover:text-slate-50 hover:border-slate-500 transition-colors">看範例報告</button>
         </div>
         <label class="mt-5 flex items-start gap-3 text-sm text-slate-400 cursor-pointer select-none">
           <input id="auth" type="checkbox" class="mt-1 w-4 h-4 rounded-sm border-slate-600 bg-slate-950 text-indigo-500 focus:ring-0 focus:ring-offset-0">
           <span>我是這個網站的擁有者或已取得檢測授權。本工具僅讀取公開回傳的標頭與靜態檔案，不做注入、爆破或掃描。</span>
         </label>
         <div class="mt-4 font-mono text-[11px] text-slate-600">每個來源 IP 每分鐘 3 次 · 內網、本機與保留網段直接拒絕<span id="usage-line" class="hidden"></span></div>
+        <div id="history" class="hidden mt-4 pt-4 rule">
+          <div class="kicker mb-2">最近檢測 · 只存在這台瀏覽器</div>
+          <div id="history-list" class="flex flex-wrap gap-2"></div>
+        </div>
         <div id="loading" class="hidden mt-5 pt-5 rule font-mono text-[12px] text-slate-300">
           <span class="text-indigo-300">▸</span> <span id="loading-text">正在準備檢測</span>
         </div>
@@ -123,6 +146,8 @@
 
     <!-- Results -->
     <div id="results" class="hidden mt-16 space-y-16">
+
+      <div id="banner" class="hidden -mb-10 border hair bg-indigo-500/5 px-4 py-3 font-mono text-[12px] text-indigo-200"></div>
 
       <!-- Report header -->
       <section class="fade-in">
@@ -157,8 +182,11 @@
             <div id="tech" class="flex flex-wrap gap-2 mb-6"></div>
             <div id="stats" class="grid grid-cols-3 border-t border-b hair divide-x hair"></div>
             <div id="notes" class="hidden mt-4 font-mono text-[11px] text-amber-300/90 space-y-1"></div>
-            <div class="mt-5 flex gap-4 font-mono text-[12px]">
+            <div id="compare" class="hidden mt-4 border hair px-4 py-3 text-sm"></div>
+            <div class="mt-5 flex flex-wrap gap-4 font-mono text-[12px]">
+              <button id="share" class="text-indigo-300 hover:text-indigo-100 underline decoration-indigo-900 underline-offset-4">複製分享連結</button>
               <button id="download" class="text-slate-400 hover:text-slate-100 underline decoration-slate-700 underline-offset-4">下載 JSON</button>
+              <button id="print" class="text-slate-400 hover:text-slate-100 underline decoration-slate-700 underline-offset-4">列印 / 存成 PDF</button>
               <button id="rescan" class="text-slate-400 hover:text-slate-100 underline decoration-slate-700 underline-offset-4">重新檢測</button>
             </div>
           </div>
@@ -175,10 +203,18 @@
         <div id="issues" class="border-t hair"></div>
       </section>
 
+      <!-- Config snippets -->
+      <section id="snippets-section" class="fade-in hidden">
+        <div class="kicker mb-2">03 — 直接可用的設定檔</div>
+        <h2 class="font-serif text-2xl font-bold text-slate-50 mb-1">不用等 AI，複製貼上就補齊</h2>
+        <p class="text-sm text-slate-400 mb-6">依偵測到的平台由規則引擎直接產生，只包含這次缺少的項目。</p>
+        <div id="snippets" class="border-t hair"></div>
+      </section>
+
       <!-- Advisor -->
       <section class="fade-in">
         <div class="flex items-baseline justify-between mb-2">
-          <div class="kicker">03 — 顧問分析</div>
+          <div class="kicker">04 — 顧問分析</div>
           <div class="flex items-center gap-4 font-mono text-[12px]">
             <span id="ai-provider" class="text-slate-500"></span>
             <button id="ai-regenerate" class="hidden text-slate-400 hover:text-slate-100 underline decoration-slate-700 underline-offset-4">重新生成</button>
@@ -208,7 +244,7 @@
 
       <!-- Passed -->
       <section class="fade-in">
-        <div class="kicker mb-2">04 — 通過</div>
+        <div class="kicker mb-2">05 — 通過</div>
         <h2 class="font-serif text-2xl font-bold text-slate-50 mb-6">已到位的防線</h2>
         <div id="passed" class="border-t hair"></div>
       </section>
@@ -244,8 +280,11 @@
       aiLoading: $('#ai-loading'), aiContent: $('#ai-content'), aiProvider: $('#ai-provider'), aiRegenerate: $('#ai-regenerate'),
       chat: $('#chat'), chatInput: $('#chat-input'), chatSend: $('#chat-send'),
       download: $('#download'), rescan: $('#rescan'), toast: $('#toast'), llmBadge: $('#llm-badge'),
+      sample: $('#sample'), share: $('#share'), print: $('#print'), banner: $('#banner'), compare: $('#compare'),
+      history: $('#history'), historyList: $('#history-list'), snippets: $('#snippets'), snippetsSection: $('#snippets-section'),
     };
-    const state = { scan: null, consult: null, history: [], busy: false };
+    // mode: live（剛掃描）| sample（範例）| shared（別人分享的連結）
+    const state = { scan: null, consult: null, history: [], busy: false, mode: 'live' };
 
     const TIPS = [
       '解析網域，確認為公開 IP', '檢查 HTTPS 是否強制導向', '讀取 HTTP 安全標頭', '分析 Cookie 的 HttpOnly / Secure 屬性',
@@ -329,17 +368,25 @@
       return data;
     }
 
+    function resetReportUI() {
+      state.history = []; els.chat.innerHTML = '';
+      show(els.banner, false); show(els.compare, false);
+      if (location.hash.startsWith('#r=')) history.replaceState(null, '', location.pathname);
+    }
+
     els.form.addEventListener('submit', async (ev) => {
       ev.preventDefault();
       const url = els.url.value.trim();
       if (!url) return;
       if (!els.auth.checked) { showError('請先勾選授權聲明'); return; }
-      clearError(); show(els.results, false); setLoading(true);
-      state.history = []; els.chat.innerHTML = '';
+      clearError(); show(els.results, false); setLoading(true); resetReportUI();
       try {
         const data = await postJSON('/api/scan', { url, authorized: true });
-        state.scan = data;
+        state.scan = data; state.consult = null; state.mode = 'live';
+        const prev = findHistory(data.target.hostname);
         renderResult(data);
+        renderCompare(data, prev);
+        recordHistory(data);
         consultAI();
       } catch (e) {
         showError(e.message || '檢測失敗');
@@ -347,6 +394,112 @@
         setLoading(false);
       }
     });
+
+    // ------------------------------------------------------------------
+    // 範例報告、分享連結、列印
+    // ------------------------------------------------------------------
+    els.sample.addEventListener('click', async () => {
+      clearError(); show(els.results, false); resetReportUI();
+      try {
+        const s = await (await fetch('/api/sample')).json();
+        state.scan = s.scan; state.consult = s.ai_consult || null; state.mode = 'sample';
+        els.banner.textContent = '範例報告 · ' + (s.note || 'demo-shop.vercel.app 為虛構網站') + ' · 想看自己的網站，回到上面輸入網址';
+        show(els.banner, true);
+        renderResult(s.scan);
+        if (state.consult) { renderConsult(state.consult); show(els.aiRegenerate, false); } else consultAI();
+      } catch (e) { showError('範例載入失敗：' + e.message); }
+    });
+
+    const b64u = {
+      enc: (bytes) => { let s = ''; for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000)); return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); },
+      dec: (s) => Uint8Array.from(atob(s.replace(/-/g, '+').replace(/_/g, '/')), (c) => c.charCodeAt(0)),
+    };
+    async function packReport(obj) {
+      const bytes = new TextEncoder().encode(JSON.stringify(obj));
+      if (!('CompressionStream' in window)) return 'j' + b64u.enc(bytes);
+      const cs = new CompressionStream('deflate-raw'); const w = cs.writable.getWriter(); w.write(bytes); w.close();
+      return 'z' + b64u.enc(new Uint8Array(await new Response(cs.readable).arrayBuffer()));
+    }
+    async function unpackReport(s) {
+      const data = b64u.dec(s.slice(1));
+      if (s[0] === 'j') return JSON.parse(new TextDecoder().decode(data));
+      const ds = new DecompressionStream('deflate-raw'); const w = ds.writable.getWriter(); w.write(data); w.close();
+      return JSON.parse(new TextDecoder().decode(await new Response(ds.readable).arrayBuffer()));
+    }
+
+    els.share.addEventListener('click', async () => {
+      if (!state.scan) return;
+      try {
+        const packed = await packReport({ v: 1, scan: state.scan, ai_consult: state.consult });
+        const link = location.origin + location.pathname + '#r=' + packed;
+        await copyText(link);
+        toast(`分享連結已複製（${(link.length / 1024).toFixed(1)} KB，報告內容都在連結裡，不經伺服器儲存）`);
+      } catch (e) { toast('產生連結失敗：' + e.message); }
+    });
+
+    async function loadShared(packed) {
+      try {
+        const p = await unpackReport(packed);
+        if (!p || !p.scan || !p.scan.target) throw new Error('格式不符');
+        state.scan = p.scan; state.consult = p.ai_consult || null; state.mode = 'shared';
+        els.banner.textContent = `分享的報告 · ${p.scan.target.hostname} · 掃描於 ${fmtTime(p.scan.scanned_at)} · 結果可能已過時，想看最新請重新檢測`;
+        show(els.banner, true);
+        renderResult(p.scan);
+        if (state.consult) { renderConsult(state.consult); show(els.aiRegenerate, true); }
+        else { show(els.aiLoading, false); els.aiContent.innerHTML = '<div class="text-sm text-slate-500">這份分享沒有附 AI 顧問分析。</div>'; show(els.aiContent, true); show(els.aiRegenerate, true); }
+      } catch (e) { showError('分享連結無法讀取：' + e.message); }
+    }
+
+    els.print.addEventListener('click', () => {
+      document.querySelectorAll('#results details').forEach((d) => { d.open = true; });
+      window.print();
+    });
+
+    // ------------------------------------------------------------------
+    // 歷史紀錄與重掃比較（只存在這台瀏覽器）
+    // ------------------------------------------------------------------
+    const HISTORY_KEY = 'wsa_history_v1';
+    function readHistory() { try { return JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]'); } catch { return []; } }
+    function findHistory(host) { return readHistory().find((h) => h.host === host) || null; }
+    function recordHistory(r) {
+      try {
+        const entry = {
+          host: r.target.hostname, url: r.target.input_url, score: r.score, grade: r.grade, at: r.scanned_at,
+          issues: r.issues.filter((i) => i.penalty > 0).map((i) => ({ id: i.id, title: i.title })),
+        };
+        const list = [entry, ...readHistory().filter((h) => h.host !== entry.host)].slice(0, 12);
+        localStorage.setItem(HISTORY_KEY, JSON.stringify(list));
+      } catch {}
+      renderHistory();
+    }
+    function renderHistory() {
+      const list = readHistory();
+      show(els.history, list.length > 0);
+      els.historyList.innerHTML = list.map((h) => {
+        const g = GRADE[h.grade] || GRADE.F;
+        return `<button type="button" data-url="${esc(h.url)}" class="font-mono text-[11px] px-2.5 py-1 border hair rounded-sm text-slate-300 hover:border-slate-500"><span class="font-bold" style="color:${g.bar}">${esc(h.grade)} ${h.score}</span> · ${esc(h.host)}</button>`;
+      }).join('');
+    }
+    els.historyList.addEventListener('click', (e) => {
+      const b = e.target.closest('[data-url]'); if (!b) return;
+      els.url.value = b.dataset.url; syncSubmit(); els.url.focus();
+    });
+    function renderCompare(r, prev) {
+      if (!prev) { show(els.compare, false); return; }
+      const cur = new Set(r.issues.filter((i) => i.penalty > 0).map((i) => i.id));
+      const fixed = prev.issues.filter((i) => !cur.has(i.id));
+      const prevIds = new Set(prev.issues.map((i) => i.id));
+      const added = r.issues.filter((i) => i.penalty > 0 && !prevIds.has(i.id));
+      const delta = r.score - prev.score;
+      const deltaText = delta === 0 ? '沒有變化' : `<span class="${delta > 0 ? 'text-emerald-300' : 'text-rose-300'}">${delta > 0 ? '+' : ''}${delta}</span>`;
+      els.compare.innerHTML = `
+        <div class="flex flex-wrap items-baseline gap-x-3 gap-y-1"><span class="kicker" style="letter-spacing:.08em">與上次比較</span><span class="font-mono text-[12px] text-slate-500">${esc(fmtTime(prev.at))}</span></div>
+        <div class="mt-1 font-mono text-sm text-slate-200">${prev.score} ${esc(prev.grade)} → ${r.score} ${esc(r.grade)}（${deltaText}）</div>
+        ${fixed.length ? `<div class="mt-2 text-sm text-emerald-300">已修好：${fixed.map((i) => esc(i.title)).join('、')}</div>` : ''}
+        ${added.length ? `<div class="mt-1 text-sm text-rose-300">新出現：${added.map((i) => esc(i.title)).join('、')}</div>` : ''}
+        ${!fixed.length && !added.length ? '<div class="mt-1 text-sm text-slate-500">扣分項目和上次相同</div>' : ''}`;
+      show(els.compare, true);
+    }
 
     els.rescan.addEventListener('click', () => { window.scrollTo({ top: 0, behavior: 'smooth' }); els.url.focus(); });
     els.download.addEventListener('click', () => {
@@ -410,8 +563,23 @@
         </div>`).join('');
 
       renderDetails(r);
+      renderSnippets(r);
       show(els.results, true);
       els.results.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    function renderSnippets(r) {
+      const list = r.config_snippets || [];
+      show(els.snippetsSection, list.length > 0);
+      els.snippets.innerHTML = list.map((s, i) => `
+        <details class="border-b hair" ${i === 0 ? 'open' : ''}>
+          <summary class="py-4 flex flex-wrap items-center justify-between gap-3">
+            <span class="text-sm text-slate-200"><span class="chev font-mono text-slate-600 mr-2">›</span>${esc(s.title)} <span class="font-mono text-[11px] text-slate-500 ml-2">${esc(s.filename)}</span></span>
+            <button data-copy="snippet" data-index="${i}" class="shrink-0 font-mono text-[11px] px-3 py-1.5 border hair rounded-sm text-slate-300 hover:border-indigo-400 hover:text-indigo-200">COPY</button>
+          </summary>
+          <pre class="mb-3 font-mono text-[12px] text-slate-300 leading-relaxed border hair rounded p-4 bg-slate-950/60">${esc(s.content)}</pre>
+          ${s.note ? `<p class="pb-4 text-[12px] text-slate-500">${esc(s.note)}</p>` : ''}
+        </details>`).join('');
     }
 
     function issueRow(it, idx) {
@@ -561,7 +729,12 @@
       const i = Number(btn.dataset.index);
       if (btn.dataset.copy === 'issue' && state.scan) copyText(state.scan.issues[i].fix_prompt);
       if (btn.dataset.copy === 'ai' && state.consult) copyText(state.consult.fix_prompts[i].prompt);
+      if (btn.dataset.copy === 'snippet' && state.scan) copyText(state.scan.config_snippets[i].content);
     });
+
+    renderHistory();
+    if (location.hash.startsWith('#r=')) loadShared(location.hash.slice(3));
+    window.addEventListener('hashchange', () => { if (location.hash.startsWith('#r=')) { resetReportUI(); loadShared(location.hash.slice(3)); } });
 
     fetch('/api/stats').then(r => r.ok ? r.json() : null).then(s => {
       if (!s || !s.since_start || !s.since_start.scans) return;

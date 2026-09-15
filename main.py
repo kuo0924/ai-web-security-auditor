@@ -1253,6 +1253,119 @@ def build_fix_prompt(issue_id: str, tech: dict[str, Any], evidence: str = "") ->
     return intro + bodies.get(issue_id, "任務：請依檢測報告修復此項目。") + outro
 
 
+SECURITY_HEADER_VALUES: dict[str, tuple[str, str]] = {
+    "hsts": ("Strict-Transport-Security", "max-age=31536000; includeSubDomains"),
+    "x_frame_options": ("X-Frame-Options", "DENY"),
+    "x_content_type_options": ("X-Content-Type-Options", "nosniff"),
+    "referrer_policy": ("Referrer-Policy", "strict-origin-when-cross-origin"),
+    "permissions_policy": ("Permissions-Policy", "camera=(), microphone=(), geolocation=()"),
+    "cross_origin_isolation": ("Cross-Origin-Opener-Policy", "same-origin"),
+    "csp": (
+        "Content-Security-Policy-Report-Only",
+        "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; "
+        "font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'",
+    ),
+}
+
+
+def build_config_snippets(issues: list[dict[str, Any]], tech: dict[str, Any]) -> list[dict[str, str]]:
+    """依偵測到的平台，直接產出可貼上的設定檔（不經 AI）。只列缺少的標頭。"""
+    ids = {i["id"] for i in issues}
+    wanted: list[tuple[str, str]] = []
+    for key, pair in SECURITY_HEADER_VALUES.items():
+        if key in ids or (key == "hsts" and "hsts_weak" in ids) or (key == "csp" and "csp_weak" in ids):
+            wanted.append(pair)
+    need_redirect = "https" in ids
+    need_dotfiles = "env_exposed" in ids or "git_exposed" in ids
+    if not wanted and not need_redirect and not need_dotfiles:
+        return []
+    platform = tech.get("platform", "generic")
+    csp_note = "CSP 先以 Report-Only 上線，開瀏覽器 console 觀察幾天沒有違規後，再把標頭名稱改成 Content-Security-Policy。" if any(n.startswith("Content-Security-Policy") for n, _ in wanted) else ""
+    out: list[dict[str, str]] = []
+
+    def js_list() -> str:
+        return ",\n".join(f"  {{ key: {json.dumps(n)}, value: {json.dumps(v)} }}" for n, v in wanted)
+
+    def flat_list(indent: str = "  ") -> str:
+        return "\n".join(f"{indent}{n}: {v}" for n, v in wanted)
+
+    if platform == "nextjs":
+        out.append({
+            "filename": "next.config.js", "title": "Next.js：在 headers() 一次補齊",
+            "content": (
+                "// next.config.js（由網站安全體檢儀產生）\nconst securityHeaders = [\n" + js_list() + "\n];\n\n"
+                "/** @type {import('next').NextConfig} */\nconst nextConfig = {\n  async headers() {\n"
+                "    return [{ source: \"/(.*)\", headers: securityHeaders }];\n  },\n};\n\nmodule.exports = nextConfig;\n"
+            ),
+            "note": "已有 next.config.js 的話，把 headers() 合併進去；用 next.config.mjs 就改成 export default。" + csp_note,
+        })
+    elif platform in ("vercel", "vite"):
+        out.append({
+            "filename": "vercel.json", "title": "Vercel：專案根目錄的 vercel.json",
+            "content": json.dumps({"headers": [{"source": "/(.*)", "headers": [{"key": n, "value": v} for n, v in wanted]}]}, ensure_ascii=False, indent=2) + "\n",
+            "note": "不是部署在 Vercel 的話，Netlify 用 public/_headers、自架用 Nginx 的版本。" + csp_note,
+        })
+    elif platform in ("netlify", "cloudflare"):
+        out.append({
+            "filename": "public/_headers", "title": ("Netlify" if platform == "netlify" else "Cloudflare Pages") + "：_headers 檔",
+            "content": "/*\n" + flat_list("  ") + "\n",
+            "note": ("放在建置輸出目錄（通常是 public/ 或 dist/）。Cloudflare 代理的網站也可到 Rules → Transform Rules → Modify Response Header 逐條加。" if platform == "cloudflare" else "放在 public/ 目錄，建置後會被複製到輸出目錄。") + csp_note,
+        })
+    elif platform == "sveltekit":
+        out.append({
+            "filename": "src/hooks.server.ts", "title": "SvelteKit：hooks.server.ts",
+            "content": (
+                "import type { Handle } from '@sveltejs/kit';\n\nconst securityHeaders: Record<string, string> = {\n"
+                + ",\n".join(f"  {json.dumps(n)}: {json.dumps(v)}" for n, v in wanted)
+                + "\n};\n\nexport const handle: Handle = async ({ event, resolve }) => {\n  const response = await resolve(event);\n"
+                "  for (const [k, v] of Object.entries(securityHeaders)) response.headers.set(k, v);\n  return response;\n};\n"
+            ),
+            "note": csp_note,
+        })
+    elif platform == "nuxt":
+        out.append({
+            "filename": "nuxt.config.ts", "title": "Nuxt：routeRules 加標頭",
+            "content": (
+                "export default defineNuxtConfig({\n  routeRules: {\n    '/**': {\n      headers: {\n"
+                + ",\n".join(f"        {json.dumps(n)}: {json.dumps(v)}" for n, v in wanted)
+                + "\n      },\n    },\n  },\n});\n"
+            ),
+            "note": "或安裝 nuxt-security 模組一次補齊。" + csp_note,
+        })
+    elif platform == "express":
+        lines = "\n".join(f"  res.setHeader({json.dumps(n)}, {json.dumps(v)});" for n, v in wanted)
+        content = "// 放在所有路由之前\napp.use((req, res, next) => {\n" + lines + "\n  next();\n});\n"
+        if need_redirect:
+            content += "\n// 強制 HTTPS（在反向代理後面要先 app.set('trust proxy', 1)）\napp.use((req, res, next) => {\n  if (!req.secure) return res.redirect(301, 'https://' + req.headers.host + req.originalUrl);\n  next();\n});\n"
+        if need_dotfiles:
+            content += "\n// 靜態目錄拒絕點開頭的檔案（.env、.git）\napp.use(express.static('public', { dotfiles: 'deny' }));\n"
+        out.append({"filename": "server.js", "title": "Express：中介層設標頭", "content": content, "note": "也可以 npm install helmet 後用 helmet()，效果相同。" + csp_note})
+    elif platform in ("apache", "wordpress"):
+        content = "# .htaccess（由網站安全體檢儀產生）\n" + "\n".join(f"Header always set {n} \"{v}\"" for n, v in wanted) + "\n"
+        if need_redirect:
+            content += "\nRewriteEngine On\nRewriteCond %{HTTPS} off\nRewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]\n"
+        if need_dotfiles:
+            content += "\n<FilesMatch \"^\\.\">\n  Require all denied\n</FilesMatch>\nRedirectMatch 404 /\\.git\n"
+        out.append({"filename": ".htaccess", "title": ("WordPress" if platform == "wordpress" else "Apache") + "：.htaccess", "content": content, "note": "需要 mod_headers 與 mod_rewrite 已啟用。" + csp_note})
+    elif platform == "github-pages":
+        csp_val = SECURITY_HEADER_VALUES["csp"][1]
+        out.append({
+            "filename": "index.html", "title": "GitHub Pages：只能用 <meta> 設 CSP",
+            "content": f"<meta http-equiv=\"Content-Security-Policy\" content=\"{csp_val.replace('frame-ancestors ' + chr(39) + 'none' + chr(39) + '; ', '')}\">\n",
+            "note": "GitHub Pages 無法自訂 HTTP 標頭，HSTS、X-Frame-Options 這些在這裡做不到；需要完整防護請改用 Cloudflare Pages 或 Netlify（免費）。",
+        })
+    else:  # nginx 與 generic
+        content = "# 放進 server { } 區塊（由網站安全體檢儀產生）\n" + "\n".join(f"add_header {n} \"{v}\" always;" for n, v in wanted) + "\n"
+        if need_dotfiles:
+            content += "\n# 擋掉 .env、.git 等所有點開頭的路徑\nlocation ~ /\\.(?!well-known) { deny all; return 404; }\n"
+        if need_redirect:
+            content += "\n# 另一個 server 區塊：80 一律轉 443\nserver {\n  listen 80;\n  server_name _;\n  return 301 https://$host$request_uri;\n}\n"
+        out.append({"filename": "nginx.conf", "title": "Nginx：add_header 一次補齊" if platform == "nginx" else "自架（Nginx 範例）", "content": content, "note": ("加完 `sudo nginx -t` 檢查語法再 `sudo systemctl reload nginx`。" if platform == "nginx" else "沒偵測到明確平台。若是 Vercel 用 vercel.json、Netlify 用 _headers，寫法見修復 Prompt。") + csp_note})
+    if wanted and platform not in ("nginx", "generic", "apache", "wordpress"):
+        out.append({"filename": "headers.txt", "title": "標頭清單（任何平台通用）", "content": flat_list("") + "\n", "note": "不管用哪個平台，最終目標就是讓每個回應都帶上這幾行。部署後用 curl -I 你的網址 確認。"})
+    return out
+
+
 def make_issue(issue_id: str, tech: dict[str, Any], evidence: str = "") -> dict[str, Any]:
     spec = ISSUE_CATALOG[issue_id]
     return {
@@ -1543,6 +1656,7 @@ def evaluate(
         "tech": tech,
         "issues": issues,
         "passed": passed,
+        "config_snippets": build_config_snippets(issues, tech),
         "headers": snapshot,
         "details": {
             "redirect_chain": main.hops,
@@ -2141,6 +2255,23 @@ async def index(request: Request):
 async def stats_page(request: Request):
     """給人看的使用量頁面（資料來自 /api/stats）。"""
     return render_page("stats.html", request)
+
+
+@app.get("/api/sample")
+async def api_sample():
+    """範例報告（虛構網站，含預先產生的 AI 顧問結果），讓訪客不用掃描就能看到成品。"""
+    return FileResponse(BASE_DIR / "sample_report.json", media_type="application/json; charset=utf-8", headers={"Cache-Control": "public, max-age=3600"})
+
+
+@app.get("/favicon.ico")
+@app.get("/favicon.svg")
+async def favicon():
+    return FileResponse(BASE_DIR / "static" / "favicon.svg", media_type="image/svg+xml", headers={"Cache-Control": "public, max-age=86400"})
+
+
+@app.get("/og.png")
+async def og_image():
+    return FileResponse(BASE_DIR / "static" / "og.png", media_type="image/png", headers={"Cache-Control": "public, max-age=86400"})
 
 
 @app.api_route("/api/health", methods=["GET", "HEAD"])  # 監控服務常用 HEAD，只開 GET 會回 405 被判成掛掉

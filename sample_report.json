@@ -1,0 +1,283 @@
+{
+ "sample": true,
+ "note": "demo-shop.vercel.app 為虛構網站，此報告為示範用",
+ "scan": {
+  "target": {
+   "input_url": "https://demo-shop.vercel.app/",
+   "final_url": "https://demo-shop.vercel.app/",
+   "hostname": "demo-shop.vercel.app",
+   "scheme": "https",
+   "status_code": 200
+  },
+  "score": 55,
+  "grade": "C",
+  "grade_label": "待加強",
+  "tech": {
+   "stack": [
+    "Next.js",
+    "Vercel"
+   ],
+   "platform": "nextjs"
+  },
+  "issues": [
+   {
+    "id": "csp",
+    "title": "缺少 Content-Security-Policy (CSP)",
+    "category": "HTTP 安全標頭",
+    "severity": "high",
+    "penalty": 20,
+    "description": "沒有內容安全政策，代表只要任何一處有 XSS 漏洞（例如留言板沒過濾），攻擊者就能在你的網站上執行任意 JavaScript、偷 Cookie、改頁面。CSP 是最後一道防線。",
+    "evidence": "回應中沒有 Content-Security-Policy 標頭，HTML 也沒有對應的 <meta>",
+    "fix_prompt": "你是我的資深資安工程師。我的網站經被動檢測推測技術棧為：Next.js、Vercel。請先讀取專案結構確認實際使用的框架與部署方式，再進行以下修改，修改後告訴我如何驗證。\n\n任務：建立 Content-Security-Policy。位置：Next.js 專案的 next.config.js / next.config.mjs 裡的 `async headers()`（需要 nonce 的 CSP 則放在 middleware.ts）。步驟：1) 先盤點網站用到的外部資源（第三方腳本、字型、圖片、API、iframe）；2) 先以 `Content-Security-Policy-Report-Only` 上線，觀察瀏覽器 console 有沒有違規；3) 確認無誤後改成正式的 `Content-Security-Policy`。起手式：`default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'`。請依盤點結果把實際用到的網域加進對應指令，script-src 避免 'unsafe-inline'（Next.js 可在 middleware.ts 產生 nonce 並透過 x-nonce 標頭傳給 App Router，請參考官方 CSP 指南）。\n\n要求：1) 直接給我完整可貼上的程式碼或設定檔內容；2) 逐行說明用途；3) 指出可能的副作用與回滾方式；4) 不要改動與此任務無關的檔案。"
+   },
+   {
+    "id": "x_content_type_options",
+    "title": "缺少 X-Content-Type-Options（MIME 嗅探防護）",
+    "category": "HTTP 安全標頭",
+    "severity": "low",
+    "penalty": 10,
+    "description": "瀏覽器可能會「猜」檔案類型，把使用者上傳的圖片當成 JavaScript 執行（MIME 嗅探）。加上 nosniff 就能關掉這個猜測。",
+    "evidence": "回應中沒有 X-Content-Type-Options: nosniff",
+    "fix_prompt": "你是我的資深資安工程師。我的網站經被動檢測推測技術棧為：Next.js、Vercel。請先讀取專案結構確認實際使用的框架與部署方式，再進行以下修改，修改後告訴我如何驗證。\n\n任務：加入 `X-Content-Type-Options: nosniff`。位置：Next.js 專案的 next.config.js / next.config.mjs 裡的 `async headers()`（需要 nonce 的 CSP 則放在 middleware.ts）。這個標頭幾乎沒有副作用，直接加即可；順便確認所有靜態資源都回傳正確的 Content-Type。\n\n要求：1) 直接給我完整可貼上的程式碼或設定檔內容；2) 逐行說明用途；3) 指出可能的副作用與回滾方式；4) 不要改動與此任務無關的檔案。"
+   },
+   {
+    "id": "cookie_httponly",
+    "title": "Cookie 缺少 HttpOnly 屬性",
+    "category": "Cookie 安全",
+    "severity": "low",
+    "penalty": 5,
+    "description": "這些 Cookie 可以被頁面上的 JavaScript 讀到。一旦有 XSS，攻擊者一行 document.cookie 就能把登入狀態偷走。",
+    "evidence": "缺少 HttpOnly 的 Cookie：session, cart_id",
+    "fix_prompt": "你是我的資深資安工程師。我的網站經被動檢測推測技術棧為：Next.js、Vercel。請先讀取專案結構確認實際使用的框架與部署方式，再進行以下修改，修改後告訴我如何驗證。\n\n任務：為 Cookie 加上 HttpOnly 屬性。受影響的 Cookie：缺少 HttpOnly 的 Cookie：session, cart_id。請找出程式中設定這些 Cookie 的位置（例如 res.cookie、cookies().set、Set-Cookie 標頭、認證套件設定），加上 `httpOnly: true`。若某個 Cookie 確實需要被前端 JavaScript 讀取，請說明原因並評估改用其他方式傳遞。\n\n要求：1) 直接給我完整可貼上的程式碼或設定檔內容；2) 逐行說明用途；3) 指出可能的副作用與回滾方式；4) 不要改動與此任務無關的檔案。"
+   },
+   {
+    "id": "cookie_secure",
+    "title": "Cookie 缺少 Secure 屬性",
+    "category": "Cookie 安全",
+    "severity": "low",
+    "penalty": 5,
+    "description": "這些 Cookie 沒有 Secure 屬性，瀏覽器在 http:// 連線時也會把它送出去，可能在網路上被明文攔截。",
+    "evidence": "缺少 Secure 的 Cookie：session, cart_id",
+    "fix_prompt": "你是我的資深資安工程師。我的網站經被動檢測推測技術棧為：Next.js、Vercel。請先讀取專案結構確認實際使用的框架與部署方式，再進行以下修改，修改後告訴我如何驗證。\n\n任務：為 Cookie 加上 Secure 屬性。受影響的 Cookie：缺少 Secure 的 Cookie：session, cart_id。請在設定 Cookie 的位置加上 `secure: true`，並建議同時設定 `sameSite: 'lax'`（或 'strict'）。注意本機 http://localhost 開發環境可能需要依 NODE_ENV 切換 secure 設定。\n\n要求：1) 直接給我完整可貼上的程式碼或設定檔內容；2) 逐行說明用途；3) 指出可能的副作用與回滾方式；4) 不要改動與此任務無關的檔案。"
+   },
+   {
+    "id": "sourcemap_exposed",
+    "title": "前端 source map 可公開下載（原始碼外洩）",
+    "category": "原始碼外洩",
+    "severity": "low",
+    "penalty": 5,
+    "description": "打包後的 JS 附帶了 .map 檔，任何人都能還原出你沒壓縮前的原始碼、檔案結構、註解，甚至寫死在裡面的內部網址。這會讓攻擊者更容易找到邏輯漏洞。",
+    "evidence": "https://demo-shop.vercel.app/_next/static/chunks/main-3f2a9c.js 的 .map 可下載（84 bytes）",
+    "fix_prompt": "你是我的資深資安工程師。我的網站經被動檢測推測技術棧為：Next.js、Vercel。請先讀取專案結構確認實際使用的框架與部署方式，再進行以下修改，修改後告訴我如何驗證。\n\n任務：停止在正式環境公開 source map。證據：https://demo-shop.vercel.app/_next/static/chunks/main-3f2a9c.js 的 .map 可下載（84 bytes）。依框架處理：Next.js 確認 next.config.js 沒有 `productionBrowserSourceMaps: true`；Vite 在 vite.config 設 `build.sourcemap: false`（需要錯誤追蹤時用 'hidden' 並只上傳到 Sentry 之類的服務）；Create React App 建置時設 `GENERATE_SOURCEMAP=false`；Nuxt 設 `sourcemap: { client: false }`；Angular 確認 production 設定的 sourceMap 為 false。自架伺服器可再加一層：Nginx `location ~ \\.map$ { return 404; }`。重新部署後請求那個 .map 網址應回 404。\n\n要求：1) 直接給我完整可貼上的程式碼或設定檔內容；2) 逐行說明用途；3) 指出可能的副作用與回滾方式；4) 不要改動與此任務無關的檔案。"
+   },
+   {
+    "id": "permissions_policy",
+    "title": "建議：設定 Permissions-Policy",
+    "category": "建議加強",
+    "severity": "info",
+    "penalty": 0,
+    "description": "未設定 Permissions-Policy。可明確關閉網站用不到的瀏覽器功能（相機、麥克風、定位），降低第三方腳本濫用的風險。不扣分，但建議補上。",
+    "evidence": "回應中沒有 Permissions-Policy 標頭",
+    "fix_prompt": "你是我的資深資安工程師。我的網站經被動檢測推測技術棧為：Next.js、Vercel。請先讀取專案結構確認實際使用的框架與部署方式，再進行以下修改，修改後告訴我如何驗證。\n\n任務：加入 `Permissions-Policy: camera=(), microphone=(), geolocation=()`（依實際需要調整）。位置：Next.js 專案的 next.config.js / next.config.mjs 裡的 `async headers()`（需要 nonce 的 CSP 則放在 middleware.ts）。\n\n要求：1) 直接給我完整可貼上的程式碼或設定檔內容；2) 逐行說明用途；3) 指出可能的副作用與回滾方式；4) 不要改動與此任務無關的檔案。"
+   },
+   {
+    "id": "cross_origin_isolation",
+    "title": "建議：設定 Cross-Origin-Opener-Policy",
+    "category": "建議加強",
+    "severity": "info",
+    "penalty": 0,
+    "description": "未設定 COOP。設成 same-origin 可以切斷其他網站透過 window.opener 操控你頁面的管道，降低跨站洩漏（XS-Leaks）類攻擊的風險。若網站有 OAuth 彈窗登入，改用 same-origin-allow-popups。",
+    "evidence": "回應中沒有 Cross-Origin-Opener-Policy 標頭",
+    "fix_prompt": "你是我的資深資安工程師。我的網站經被動檢測推測技術棧為：Next.js、Vercel。請先讀取專案結構確認實際使用的框架與部署方式，再進行以下修改，修改後告訴我如何驗證。\n\n任務：加入 `Cross-Origin-Opener-Policy: same-origin`。位置：Next.js 專案的 next.config.js / next.config.mjs 裡的 `async headers()`（需要 nonce 的 CSP 則放在 middleware.ts）。若網站使用 OAuth 彈窗登入（Google / GitHub 登入視窗需要 window.opener），改用 `same-origin-allow-popups`。加完後測試登入流程與所有會開新視窗的功能。\n\n要求：1) 直接給我完整可貼上的程式碼或設定檔內容；2) 逐行說明用途；3) 指出可能的副作用與回滾方式；4) 不要改動與此任務無關的檔案。"
+   },
+   {
+    "id": "cookie_samesite",
+    "title": "建議：Cookie 加上 SameSite 屬性",
+    "category": "Cookie 安全",
+    "severity": "info",
+    "penalty": 0,
+    "description": "這些 Cookie 沒有 SameSite 屬性。雖然現代瀏覽器預設當成 Lax，但明確設定 Lax 或 Strict 才能確保跨站請求偽造（CSRF）時不會夾帶登入狀態。",
+    "evidence": "缺少 SameSite 的 Cookie：session",
+    "fix_prompt": "你是我的資深資安工程師。我的網站經被動檢測推測技術棧為：Next.js、Vercel。請先讀取專案結構確認實際使用的框架與部署方式，再進行以下修改，修改後告訴我如何驗證。\n\n任務：為 Cookie 加上 SameSite 屬性。受影響的 Cookie：缺少 SameSite 的 Cookie：session。在設定這些 Cookie 的地方加上 `sameSite: 'lax'`（一般登入狀態）或 `'strict'`（高敏感操作）。若 Cookie 需要在跨站 iframe 或第三方情境使用，才設 `sameSite: 'none'` 且必須同時有 `secure: true`。\n\n要求：1) 直接給我完整可貼上的程式碼或設定檔內容；2) 逐行說明用途；3) 指出可能的副作用與回滾方式；4) 不要改動與此任務無關的檔案。"
+   },
+   {
+    "id": "sri_missing",
+    "title": "建議：第三方腳本加上 SRI 完整性驗證",
+    "category": "供應鏈安全",
+    "severity": "info",
+    "penalty": 0,
+    "description": "頁面從外部 CDN 載入 JavaScript 但沒有 integrity 屬性。如果那個 CDN 被入侵或網域過期被接管，惡意程式碼會直接在你的網站執行。加上 SRI 後，內容一被竄改瀏覽器就拒絕執行。像 GA/GTM 這類會變動的追蹤腳本無法用 SRI，這項只針對固定版本的函式庫。",
+    "evidence": "https://cdnjs.cloudflare.com/ajax/libs/dayjs/1.11.10/dayjs.min.js",
+    "fix_prompt": "你是我的資深資安工程師。我的網站經被動檢測推測技術棧為：Next.js、Vercel。請先讀取專案結構確認實際使用的框架與部署方式，再進行以下修改，修改後告訴我如何驗證。\n\n任務：為第三方腳本加上 Subresource Integrity。目前沒有 integrity 的腳本：https://cdnjs.cloudflare.com/ajax/libs/dayjs/1.11.10/dayjs.min.js。對每一個固定版本的 CDN 腳本，用 `openssl dgst -sha384 -binary file.js | openssl base64 -A` 算出雜湊（或到 srihash.org），在 <script> 加上 `integrity=\"sha384-…\" crossorigin=\"anonymous\"`。會動態變動的追蹤腳本（GA、GTM）不適用 SRI，請略過。更根本的做法：把固定版本的函式庫改成 npm 安裝、隨專案打包，就不依賴外部 CDN。\n\n要求：1) 直接給我完整可貼上的程式碼或設定檔內容；2) 逐行說明用途；3) 指出可能的副作用與回滾方式；4) 不要改動與此任務無關的檔案。"
+   },
+   {
+    "id": "security_txt",
+    "title": "建議：提供 /.well-known/security.txt",
+    "category": "建議加強",
+    "severity": "info",
+    "penalty": 0,
+    "description": "沒有 security.txt。這是業界標準的「資安聯絡方式」檔案，有人發現你網站的漏洞時知道該通知誰，而不是直接公開或放著不管。",
+    "evidence": "/.well-known/security.txt 不存在或不含 Contact 欄位",
+    "fix_prompt": "你是我的資深資安工程師。我的網站經被動檢測推測技術棧為：Next.js、Vercel。請先讀取專案結構確認實際使用的框架與部署方式，再進行以下修改，修改後告訴我如何驗證。\n\n任務：建立 /.well-known/security.txt。內容至少包含 `Contact: mailto:你的資安聯絡信箱`、`Expires: <一年後的 ISO 時間>`、`Preferred-Languages: zh-TW, en`。檔案放在靜態資源目錄（Next.js / Vite / CRA 放 public/.well-known/security.txt；Next.js 專案的 next.config.js / next.config.mjs 裡的 `async headers()` 若無法放靜態檔則加一條路由回傳純文字）。部署後開 https://你的網域/.well-known/security.txt 應能看到內容。\n\n要求：1) 直接給我完整可貼上的程式碼或設定檔內容；2) 逐行說明用途；3) 指出可能的副作用與回滾方式；4) 不要改動與此任務無關的檔案。"
+   }
+  ],
+  "passed": [
+   {
+    "id": "https",
+    "title": "強制 HTTPS",
+    "detail": "http://demo-shop.vercel.app/ 回應 308 並導向 https://demo-shop.vercel.app/"
+   },
+   {
+    "id": "hsts",
+    "title": "HSTS 已設定",
+    "detail": "Strict-Transport-Security: max-age=63072000; includeSubDomains; preload"
+   },
+   {
+    "id": "x_frame_options",
+    "title": "點擊劫持防護已設定",
+    "detail": "X-Frame-Options: DENY"
+   },
+   {
+    "id": "referrer_policy",
+    "title": "Referrer-Policy 已設定",
+    "detail": "Referrer-Policy: strict-origin-when-cross-origin"
+   },
+   {
+    "id": "mixed_content",
+    "title": "沒有混合內容",
+    "detail": "HTTPS 頁面引用的腳本、樣式與 iframe 都走 https://"
+   },
+   {
+    "id": "server_version",
+    "title": "未洩漏伺服器版本",
+    "detail": "Server / X-Powered-By / generator 都沒有版本號"
+   },
+   {
+    "id": "tls_cert",
+    "title": "TLS 憑證有效",
+    "detail": "有效至 2026-11-15（剩 61 天）"
+   },
+   {
+    "id": "secret_leak",
+    "title": "前端程式碼未發現 API 金鑰",
+    "detail": "已掃描首頁 HTML 與 1 個站內 JS（12 種金鑰特徵，含 Supabase service_role JWT）"
+   },
+   {
+    "id": "outdated_library",
+    "title": "未偵測到已停止維護的函式庫",
+    "detail": "首頁與站內 JS 沒有舊版 jQuery、AngularJS 1.x、Bootstrap 3、Vue 2 的特徵"
+   },
+   {
+    "id": "env_exposed",
+    "title": "/.env 系列檔案未裸露",
+    "detail": "/.env 回應 HTTP 404；/.env.local 回應 HTTP 404；/.env.production 回應 HTTP 404"
+   },
+   {
+    "id": "git_exposed",
+    "title": "/.git/config 未裸露",
+    "detail": "/.git/config 回應 HTTP 404"
+   }
+  ],
+  "config_snippets": [
+   {
+    "filename": "next.config.js",
+    "title": "Next.js：在 headers() 一次補齊",
+    "content": "// next.config.js（由網站安全體檢儀產生）\nconst securityHeaders = [\n  { key: \"X-Content-Type-Options\", value: \"nosniff\" },\n  { key: \"Permissions-Policy\", value: \"camera=(), microphone=(), geolocation=()\" },\n  { key: \"Cross-Origin-Opener-Policy\", value: \"same-origin\" },\n  { key: \"Content-Security-Policy-Report-Only\", value: \"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'\" }\n];\n\n/** @type {import('next').NextConfig} */\nconst nextConfig = {\n  async headers() {\n    return [{ source: \"/(.*)\", headers: securityHeaders }];\n  },\n};\n\nmodule.exports = nextConfig;\n",
+    "note": "已有 next.config.js 的話，把 headers() 合併進去；用 next.config.mjs 就改成 export default。CSP 先以 Report-Only 上線，開瀏覽器 console 觀察幾天沒有違規後，再把標頭名稱改成 Content-Security-Policy。"
+   },
+   {
+    "filename": "headers.txt",
+    "title": "標頭清單（任何平台通用）",
+    "content": "X-Content-Type-Options: nosniff\nPermissions-Policy: camera=(), microphone=(), geolocation=()\nCross-Origin-Opener-Policy: same-origin\nContent-Security-Policy-Report-Only: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'\n",
+    "note": "不管用哪個平台，最終目標就是讓每個回應都帶上這幾行。部署後用 curl -I 你的網址 確認。"
+   }
+  ],
+  "headers": {
+   "strict-transport-security": "max-age=63072000; includeSubDomains; preload",
+   "content-security-policy": null,
+   "x-frame-options": "DENY",
+   "x-content-type-options": null,
+   "referrer-policy": "strict-origin-when-cross-origin",
+   "permissions-policy": null,
+   "server": "Vercel",
+   "x-powered-by": null,
+   "set-cookie": null
+  },
+  "details": {
+   "redirect_chain": [],
+   "js_files_scanned": [
+    "https://demo-shop.vercel.app/_next/static/chunks/main-3f2a9c.js"
+   ],
+   "engine_ms": 2.0,
+   "html_bytes": 434,
+   "notes": [
+    "略過 SPF / DMARC 檢查：vercel.app 是託管平台的共用網域，郵件紀錄由平台管理"
+   ],
+   "requests_made": 10,
+   "total_ms": 1840
+  },
+  "scanned_at": "2026-09-16T02:00:00+00:00"
+ },
+ "ai_consult": {
+  "summary": "你的網站基本盤（HTTPS、HSTS、X-Frame-Options）都及格，也沒有真的把金鑰或 .env/.git 曝露出去，這點值得放心。但最大的洞是完全沒有 CSP，等於瀏覽器對 XSS 攻擊完全不設防；再加上購物車用的 session、cart_id 這兩顆 Cookie 沒有 HttpOnly、Secure，一旦被注入惡意腳本就可能直接被偷走登入狀態或購物車資料。另外前端的 source map 是公開的，等於原始碼邏輯攤在陽光下給人看。這些加起來讓風險偏高，建議這週內優先處理。",
+  "risk_level": "高",
+  "priority_actions": [
+   "立刻補上 CSP（可先用 Report-Only 觀察）防止 XSS 被利用",
+   "把 session、cart_id 這兩顆 Cookie 加上 HttpOnly、Secure、SameSite",
+   "關閉或限制 _next/static 底下 .map 檔案的公開存取，避免原始碼外洩"
+  ],
+  "fix_prompts": [
+   {
+    "issue_id": "csp",
+    "issue_ids": [
+     "csp"
+    ],
+    "title": "為 Next.js 加入 CSP（用 nonce，先 Report-Only 上線）",
+    "prompt": "你是我的資深資安工程師。這是部署在 Vercel 的 Next.js 專案（不確定是 App Router 或 Pages Router，請先檢查 app/ 或 pages/ 目錄判斷）。目前完全沒有 Content-Security-Policy 標頭。請先讀取 next.config.js 與根目錄是否已有 middleware.ts，確認現有設定後，新增／修改 middleware.ts：每個請求用 crypto.randomUUID() 產生 nonce，寫入 x-nonce 請求標頭與回應的 Content-Security-Policy-Report-Only 標頭，內容起手式為 default-src 'self'; script-src 'self' 'nonce-<動態值>' 'strict-dynamic'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'。請先掃描站內用到的第三方網域（例如 cdnjs.cloudflare.com、Supabase API 等）並加進對應指令。layout 中要用 headers().get('x-nonce') 把 nonce 傳給自訂的 <Script>。提醒我：用了 nonce 的路由會變成 dynamic rendering，觀察一週 console 沒有違規訊息後，再把標頭名稱改成正式的 Content-Security-Policy。不要動其他無關檔案。"
+   },
+   {
+    "issue_id": "x_content_type_options",
+    "issue_ids": [
+     "x_content_type_options",
+     "permissions_policy",
+     "cross_origin_isolation"
+    ],
+    "title": "在 next.config.js 補齊基本安全標頭",
+    "prompt": "你是我的資深資安工程師。這是部署在 Vercel 的 Next.js 專案，目前缺少 X-Content-Type-Options、Permissions-Policy、Cross-Origin-Opener-Policy 這三個標頭（HSTS、X-Frame-Options、Referrer-Policy 已經有設定好，請保留不要動）。請先讀取 next.config.js 的 async headers()，在其中對 source: '/(.*)' 補上：X-Content-Type-Options: nosniff、Permissions-Policy: camera=(), microphone=(), geolocation=()、Cross-Origin-Opener-Policy: same-origin。給我完整檔案內容與逐行說明，並提醒我 Cross-Origin-Opener-Policy 若之後有串接第三方 OAuth 彈窗（例如 Google 登入）可能需要調整成 same-origin-allow-popups，避免跳窗流程被擋。"
+   },
+   {
+    "issue_id": "cookie_httponly",
+    "issue_ids": [
+     "cookie_httponly",
+     "cookie_secure",
+     "cookie_samesite"
+    ],
+    "title": "補齊 session 與 cart_id 的 Cookie 安全屬性",
+    "prompt": "你是我的資深資安工程師。這是部署在 Vercel 的 Next.js 專案，session 與 cart_id 這兩個 Cookie 目前沒有 HttpOnly、Secure、SameSite 屬性（session 連 SameSite 都沒有）。請先搜尋專案中所有設定這兩個 Cookie 的地方（可能在 app/api 的 Route Handler、Server Action 或自訂的 lib/session.ts），列出目前的設定方式，再統一改成：httpOnly: true、secure: true（正式環境）、sameSite: 'lax'（若前端有跨站表單流程再考慮 'strict'）。若是用 cookies().set() 或 NextResponse 的 cookies API，請直接示範修改後的完整程式碼。提醒我：加上 httpOnly 後前端 JS 將無法再讀取這兩個 Cookie，若目前有用 document.cookie 讀 cart_id 需要一併調整成改用 API 取值。"
+   },
+   {
+    "issue_id": "sourcemap_exposed",
+    "issue_ids": [
+     "sourcemap_exposed"
+    ],
+    "title": "避免前端 source map 公開外洩",
+    "prompt": "你是我的資深資安工程師。這是部署在 Vercel 的 Next.js 專案，目前 /_next/static/chunks/ 底下的 .js.map 檔案可以被公開下載，代表原始碼結構會被還原。請先確認 next.config.js 目前的 productionBrowserSourceMaps 設定值（若未設定則預設會產生 .map），然後將其設為 false，關閉正式環境的瀏覽器 source map 產出。若團隊需要保留 source map 以便用 Sentry 等工具追蹤錯誤，請改用 Sentry 的 upload-sourcemaps 流程（建置後上傳到 Sentry 再從公開目錄刪除），而不是讓 .map 檔案留在可公開存取的路徑下，並在回覆中說明兩種做法的取捨。"
+   },
+   {
+    "issue_id": "sri_missing",
+    "issue_ids": [
+     "sri_missing",
+     "security_txt"
+    ],
+    "title": "補齊第三方腳本 SRI 與 security.txt（低優先加分項）",
+    "prompt": "你是我的資深資安工程師。這是部署在 Vercel 的 Next.js 專案，有兩個低優先的加分項目：1) 站內引用的 https://cdnjs.cloudflare.com/ajax/libs/dayjs/1.11.10/dayjs.min.js 沒有 SRI（integrity + crossorigin 屬性），若能改成 npm 安裝 dayjs 套件並直接 import 會更安全，若一定要用 CDN 才需要加 integrity 雜湊；2) 網站沒有 /.well-known/security.txt。請先確認專案是否已用 npm 安裝 dayjs，若沒有請改成安裝並移除 CDN script 標籤；接著在 public/.well-known/ 目錄新增 security.txt，內容至少包含 Contact（一個可聯絡的 email 或表單連結）與 Expires 欄位。給我完整檔案內容。"
+   }
+  ],
+  "stack_note": "從 /_next/static 路徑判斷是 Next.js 部署在 Vercel，但無法確定是 App Router 還是 Pages Router，也無法確定 Cookie 是在 Route Handler、Server Action 或 middleware 中設定，請 AI 先搜尋確認再修改。",
+  "mode": "llm",
+  "provider": "anthropic",
+  "model": "claude-sonnet-5",
+  "usd": 0.05996,
+  "note": null
+ }
+}

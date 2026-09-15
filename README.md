@@ -29,7 +29,14 @@ uvicorn main:app --reload --port 8000
 
 打開 http://127.0.0.1:8000 即可使用。macOS / Linux 把啟用虛擬環境改成 `source .venv/bin/activate`、複製改成 `cp .env.example .env`，其餘相同。
 
-已在 Python 3.14 + FastAPI 0.141 驗證：62 項離線單元測試（SSRF 判定、金鑰正則、SPA fallback、計分）與真實網站掃描皆通過。
+跑測試：
+
+```powershell
+pip install -r requirements-dev.txt
+python -m pytest -q
+```
+
+全部離線（LLM 與目標網站都用模擬），涵蓋 SSRF 判定、金鑰正則、SPA fallback、計分、進階檢查、供應商備援與額度、限流與統計、設定檔產生。GitHub Actions 每次 push 自動跑。
 
 ## 架構
 
@@ -38,7 +45,9 @@ uvicorn main:app --reload --port 8000
 | 硬規則檢測層 | `main.py` §3–4 | 純被動 GET、確定性計分、毫秒級，不用 LLM |
 | AI 顧問層 | `main.py` §6 | 把檢測 JSON 交給 OpenAI 或 Claude，產出白話診斷與架構專屬修復 Prompt，支援追問 |
 | 知識庫層 | `knowledge/` | 標籤式檢索（RAG 預留介面）+ few-shot 範例，改 Markdown 就能讓建議越調越準 |
-| 前端 | `index.html` | 單頁 Tailwind 深色介面，分數儀表板、風險卡片、一鍵複製 Prompt、AI 追問 |
+| 前端 | `index.html` | 單頁 Tailwind 深色介面，分數儀表板、風險卡片、一鍵複製 Prompt、AI 追問、範例報告、分享連結（報告壓縮進網址 `#`，不經伺服器）、重掃比較（localStorage）、列印 |
+| 設定檔產生 | `main.py` `build_config_snippets()` | 依平台直接產出 next.config.js / vercel.json / _headers / nginx / .htaccess / helmet / hooks.server.ts / nuxt.config.ts，只含缺少的標頭，不經 AI |
+| 測試 | `tests/` | pytest，`python -m pytest`；GitHub Actions 每次 push 自動跑 |
 
 ## 檢測規則與計分（基礎分 100）
 
@@ -98,6 +107,7 @@ uvicorn main:app --reload --port 8000
 | `POST` | `/api/ai-consult` | `{"scan": <報告>}` → 白話總評 + 修復 Prompt；加上 `"question"` 與 `"history"` 即為追問 |
 | `GET` | `/api/health` | 目前 LLM 供應商、每日額度用量、金鑰長度（供部署確認） |
 | `GET` | `/stats` | 給人看的使用量頁面 |
+| `GET` | `/api/sample` | 範例報告（虛構網站 demo-shop.vercel.app，含預先產生的 AI 顧問結果），首頁「看範例報告」用 |
 | `GET` | `/api/stats` | 使用量彙總：今日與啟動以來的掃描數、AI 顧問數、不重複 IP、評等分布、常見平台、最近 7 天每日數。不含目標網址。設 `STATS_TOKEN` 後需帶 `?token=` |
 | `GET` | `/api/whoami` | 回報呼叫者被辨識成哪個 IP（確認反向代理設定） |
 | `POST` | `/api/knowledge/reload` | 編輯 `knowledge/` 後不重啟即生效 |

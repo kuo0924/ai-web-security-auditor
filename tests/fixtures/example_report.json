@@ -1,0 +1,133 @@
+{
+  "target": {
+    "input_url": "https://example.com/",
+    "final_url": "https://example.com/",
+    "hostname": "example.com",
+    "scheme": "https",
+    "status_code": 200
+  },
+  "score": 20,
+  "grade": "F",
+  "grade_label": "高風險",
+  "tech": {
+    "stack": [
+      "Cloudflare"
+    ],
+    "platform": "cloudflare"
+  },
+  "issues": [
+    {
+      "id": "https",
+      "title": "未強制使用 HTTPS",
+      "category": "傳輸安全",
+      "severity": "high",
+      "penalty": 20,
+      "description": "你的網站允許用不加密的 http:// 連線。使用者在咖啡廳 Wi-Fi 上輸入的帳號密碼、看的內容，都可能被同一網路的人看光或竄改。",
+      "evidence": "http://example.com/ 回應 200，可用明文瀏覽，未導向 https://",
+      "fix_prompt": "你是我的資深資安工程師。我的網站經被動檢測推測技術棧為：Cloudflare。請先讀取專案結構確認實際使用的框架與部署方式，再進行以下修改，修改後告訴我如何驗證。\n\n任務：強制所有 HTTP 流量以 301 永久轉址到 HTTPS。位置：若是 Vercel/Netlify 這類平台，到 Domains 設定確認 Redirect to HTTPS 已開啟；自架則在反向代理設定 301 轉址。並確認 https:// 下所有資源（圖片、API、字型、iframe）都不會產生 mixed content 警告。\n\n要求：1) 直接給我完整可貼上的程式碼或設定檔內容；2) 逐行說明用途；3) 指出可能的副作用與回滾方式；4) 不要改動與此任務無關的檔案。"
+    },
+    {
+      "id": "csp",
+      "title": "缺少 Content-Security-Policy (CSP)",
+      "category": "HTTP 安全標頭",
+      "severity": "high",
+      "penalty": 20,
+      "description": "沒有內容安全政策，代表只要任何一處有 XSS 漏洞（例如留言板沒過濾），攻擊者就能在你的網站上執行任意 JavaScript、偷 Cookie、改頁面。CSP 是最後一道防線。",
+      "evidence": "回應中沒有 Content-Security-Policy 標頭，HTML 也沒有對應的 <meta>",
+      "fix_prompt": "你是我的資深資安工程師。我的網站經被動檢測推測技術棧為：Cloudflare。請先讀取專案結構確認實際使用的框架與部署方式，再進行以下修改，修改後告訴我如何驗證。\n\n任務：建立 Content-Security-Policy。位置：Cloudflare 儀表板 Rules → Transform Rules → Modify Response Header（或 Workers）。步驟：1) 先盤點網站用到的外部資源（第三方腳本、字型、圖片、API、iframe）；2) 先以 `Content-Security-Policy-Report-Only` 上線，觀察瀏覽器 console 有沒有違規；3) 確認無誤後改成正式的 `Content-Security-Policy`。起手式：`default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'`。請依盤點結果把實際用到的網域加進對應指令，script-src 避免 'unsafe-inline'（若必須使用 inline script，請改用 nonce 或 hash 白名單）。\n\n要求：1) 直接給我完整可貼上的程式碼或設定檔內容；2) 逐行說明用途；3) 指出可能的副作用與回滾方式；4) 不要改動與此任務無關的檔案。"
+    },
+    {
+      "id": "hsts",
+      "title": "缺少 Strict-Transport-Security (HSTS)",
+      "category": "傳輸安全",
+      "severity": "medium",
+      "penalty": 15,
+      "description": "瀏覽器不知道你的網站「只能走 HTTPS」。使用者第一次打 http:// 進來時，中間人有機會在加密開始前把他攔下（SSL Stripping）。",
+      "evidence": "回應中沒有 Strict-Transport-Security 標頭",
+      "fix_prompt": "你是我的資深資安工程師。我的網站經被動檢測推測技術棧為：Cloudflare。請先讀取專案結構確認實際使用的框架與部署方式，再進行以下修改，修改後告訴我如何驗證。\n\n任務：加入 Strict-Transport-Security 標頭。位置：Cloudflare 儀表板 Rules → Transform Rules → Modify Response Header（或 Workers）。值：`max-age=31536000; includeSubDomains`（先不要加 preload，等確認所有子網域都支援 HTTPS 再考慮）。注意：只在 HTTPS 回應中送出此標頭；加了之後一年內瀏覽器都會強制 HTTPS，請先確認所有子網域都有有效憑證。\n\n要求：1) 直接給我完整可貼上的程式碼或設定檔內容；2) 逐行說明用途；3) 指出可能的副作用與回滾方式；4) 不要改動與此任務無關的檔案。"
+    },
+    {
+      "id": "x_frame_options",
+      "title": "缺少 X-Frame-Options（點擊劫持防護）",
+      "category": "HTTP 安全標頭",
+      "severity": "medium",
+      "penalty": 15,
+      "description": "別人可以把你的網站整個塞進他們網頁的隱形 iframe，誘騙使用者點擊（Clickjacking），例如騙他按下「刪除帳號」或「確認付款」。",
+      "evidence": "沒有 X-Frame-Options 標頭，CSP 也沒有 frame-ancestors 指令",
+      "fix_prompt": "你是我的資深資安工程師。我的網站經被動檢測推測技術棧為：Cloudflare。請先讀取專案結構確認實際使用的框架與部署方式，再進行以下修改，修改後告訴我如何驗證。\n\n任務：防止點擊劫持（Clickjacking）。位置：Cloudflare 儀表板 Rules → Transform Rules → Modify Response Header（或 Workers）。加入 `X-Frame-Options: DENY`（若網站需要被自家其他網域用 iframe 嵌入，改用 `SAMEORIGIN`），並在 Content-Security-Policy 加上 `frame-ancestors 'none'`（或 'self'），兩者一起設才能同時涵蓋新舊瀏覽器。\n\n要求：1) 直接給我完整可貼上的程式碼或設定檔內容；2) 逐行說明用途；3) 指出可能的副作用與回滾方式；4) 不要改動與此任務無關的檔案。"
+    },
+    {
+      "id": "x_content_type_options",
+      "title": "缺少 X-Content-Type-Options（MIME 嗅探防護）",
+      "category": "HTTP 安全標頭",
+      "severity": "low",
+      "penalty": 10,
+      "description": "瀏覽器可能會「猜」檔案類型，把使用者上傳的圖片當成 JavaScript 執行（MIME 嗅探）。加上 nosniff 就能關掉這個猜測。",
+      "evidence": "回應中沒有 X-Content-Type-Options: nosniff",
+      "fix_prompt": "你是我的資深資安工程師。我的網站經被動檢測推測技術棧為：Cloudflare。請先讀取專案結構確認實際使用的框架與部署方式，再進行以下修改，修改後告訴我如何驗證。\n\n任務：加入 `X-Content-Type-Options: nosniff`。位置：Cloudflare 儀表板 Rules → Transform Rules → Modify Response Header（或 Workers）。這個標頭幾乎沒有副作用，直接加即可；順便確認所有靜態資源都回傳正確的 Content-Type。\n\n要求：1) 直接給我完整可貼上的程式碼或設定檔內容；2) 逐行說明用途；3) 指出可能的副作用與回滾方式；4) 不要改動與此任務無關的檔案。"
+    },
+    {
+      "id": "referrer_policy",
+      "title": "建議：設定 Referrer-Policy",
+      "category": "建議加強",
+      "severity": "info",
+      "penalty": 0,
+      "description": "未設定 Referrer-Policy。使用者從你的網站點外部連結時，完整網址（可能含 token 或個資參數）會被送給對方網站。不扣分，但建議補上。",
+      "evidence": "回應中沒有 Referrer-Policy 標頭",
+      "fix_prompt": "你是我的資深資安工程師。我的網站經被動檢測推測技術棧為：Cloudflare。請先讀取專案結構確認實際使用的框架與部署方式，再進行以下修改，修改後告訴我如何驗證。\n\n任務：加入 `Referrer-Policy: strict-origin-when-cross-origin`。位置：Cloudflare 儀表板 Rules → Transform Rules → Modify Response Header（或 Workers）。\n\n要求：1) 直接給我完整可貼上的程式碼或設定檔內容；2) 逐行說明用途；3) 指出可能的副作用與回滾方式；4) 不要改動與此任務無關的檔案。"
+    },
+    {
+      "id": "permissions_policy",
+      "title": "建議：設定 Permissions-Policy",
+      "category": "建議加強",
+      "severity": "info",
+      "penalty": 0,
+      "description": "未設定 Permissions-Policy。可明確關閉網站用不到的瀏覽器功能（相機、麥克風、定位），降低第三方腳本濫用的風險。不扣分，但建議補上。",
+      "evidence": "回應中沒有 Permissions-Policy 標頭",
+      "fix_prompt": "你是我的資深資安工程師。我的網站經被動檢測推測技術棧為：Cloudflare。請先讀取專案結構確認實際使用的框架與部署方式，再進行以下修改，修改後告訴我如何驗證。\n\n任務：加入 `Permissions-Policy: camera=(), microphone=(), geolocation=()`（依實際需要調整）。位置：Cloudflare 儀表板 Rules → Transform Rules → Modify Response Header（或 Workers）。\n\n要求：1) 直接給我完整可貼上的程式碼或設定檔內容；2) 逐行說明用途；3) 指出可能的副作用與回滾方式；4) 不要改動與此任務無關的檔案。"
+    }
+  ],
+  "passed": [
+    {
+      "id": "cookie",
+      "title": "Cookie 安全屬性",
+      "detail": "此頁面沒有設置任何 Cookie，無此風險"
+    },
+    {
+      "id": "secret_leak",
+      "title": "前端程式碼未發現 API 金鑰",
+      "detail": "已掃描首頁 HTML 與 0 個站內 JS（7 種金鑰特徵）"
+    },
+    {
+      "id": "env_exposed",
+      "title": "/.env 未裸露",
+      "detail": "/.env 回應 HTTP 404"
+    },
+    {
+      "id": "git_exposed",
+      "title": "/.git/config 未裸露",
+      "detail": "/.git/config 回應 HTTP 404"
+    }
+  ],
+  "headers": {
+    "strict-transport-security": null,
+    "content-security-policy": null,
+    "x-frame-options": null,
+    "x-content-type-options": null,
+    "referrer-policy": null,
+    "permissions-policy": null,
+    "server": "cloudflare",
+    "x-powered-by": null,
+    "set-cookie": null
+  },
+  "details": {
+    "redirect_chain": [],
+    "js_files_scanned": [],
+    "engine_ms": 0.42,
+    "html_bytes": 559,
+    "notes": [],
+    "requests_made": 4,
+    "total_ms": 747
+  },
+  "scanned_at": "2026-09-14T16:30:18.097273+00:00"
+}
