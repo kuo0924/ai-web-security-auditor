@@ -146,6 +146,7 @@ python -m pytest -q
 ```
 
 徽章只反映經授權掃描的結果，任何人都無法用徽章網址觸發掃描。
+| `POST` | `/api/feedback` | `{"kind": "issue\|ai\|snippet", "issue_id": "csp", "vote": "up\|down"}` → 修復 Prompt 有沒有幫助的計數（每 IP 每分鐘 30 次，不記 IP） |
 | `GET` | `/api/stats` | 使用量彙總：今日與啟動以來的掃描數、AI 顧問數、不重複 IP、評等分布、常見平台、最近 7 天每日數。不含目標網址。設 `STATS_TOKEN` 後需帶 `?token=` |
 | `GET` | `/api/whoami` | 回報呼叫者被辨識成哪個 IP（確認反向代理設定） |
 | `POST` | `/api/knowledge/reload` | 編輯 `knowledge/` 後不重啟即生效 |

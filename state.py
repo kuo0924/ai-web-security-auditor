@@ -40,6 +40,7 @@ class SlidingWindowLimiter:
 scan_limiter = SlidingWindowLimiter(*SCAN_RATE_LIMIT)
 consult_limiter = SlidingWindowLimiter(*CONSULT_RATE_LIMIT)
 consult_hourly_limiter = SlidingWindowLimiter(CONSULT_HOURLY_LIMIT, 3600)
+feedback_limiter = SlidingWindowLimiter(*FEEDBACK_RATE_LIMIT)
 
 
 class DailyBudget:
@@ -105,6 +106,7 @@ class UsageStats:
         self.started_at = datetime.now(UTC)
         self.days: dict[str, dict[str, Any]] = {}
         self.total = self._blank()
+        self.feedback: dict[str, dict[str, int]] = {}  # "kind:id" -> {"up", "down"}，全期累計，不分日
 
     @staticmethod
     def _blank() -> dict[str, Any]:
@@ -153,6 +155,26 @@ class UsageStats:
                 b["consults_llm" if mode == "llm" else "consults_fallback"] += 1
             self._touch_ip(b, ip)
 
+    FEEDBACK_MAX_KEYS = 500
+
+    def record_feedback(self, kind: str, item_id: str, vote: str) -> dict[str, int]:
+        """修復 Prompt 的 👍👎：只累計「哪個項目有沒有幫助」，不記 IP、不記網址、不記內容。"""
+        key = f"{kind}:{item_id}"
+        if key not in self.feedback and len(self.feedback) >= self.FEEDBACK_MAX_KEYS:
+            return {"up": 0, "down": 0}
+        counts = self.feedback.setdefault(key, {"up": 0, "down": 0})
+        counts[vote] += 1
+        return dict(counts)
+
+    def feedback_view(self) -> dict[str, Any]:
+        items = []
+        for key, c in self.feedback.items():
+            kind, _, item_id = key.partition(":")
+            total = c["up"] + c["down"]
+            items.append({"kind": kind, "id": item_id, "up": c["up"], "down": c["down"], "helpful": round(c["up"] * 100 / total) if total else None})
+        items.sort(key=lambda x: (-(x["up"] + x["down"]), x["id"]))
+        return {"total_up": sum(c["up"] for c in self.feedback.values()), "total_down": sum(c["down"] for c in self.feedback.values()), "items": items[:30]}
+
     @staticmethod
     def _view(b: dict[str, Any]) -> dict[str, Any]:
         out = {k: v for k, v in b.items() if k not in ("ips", "scan_ms_sum", "platforms")}
@@ -168,6 +190,7 @@ class UsageStats:
             "uptime_hours": round((datetime.now(UTC) - self.started_at).total_seconds() / 3600, 1),
             "today": self._view(today),
             "since_start": self._view(self.total),
+            "feedback": self.feedback_view(),
             "daily": [{"date": d, "scans": b["scans"], "consults": b["consults"], "unique_ips": len(b["ips"])} for d, b in sorted(self.days.items())],
             "llm_budget": llm_budget.status(),
             "persistence": "upstash" if UPSTASH_URL and UPSTASH_TOKEN else "memory",
@@ -191,13 +214,14 @@ class UsageStats:
         return b
 
     def export(self) -> dict[str, Any]:
-        return {"started_at": self.started_at.isoformat(), "days": {k: self._dump(v) for k, v in self.days.items()}, "total": self._dump(self.total)}
+        return {"started_at": self.started_at.isoformat(), "days": {k: self._dump(v) for k, v in self.days.items()}, "total": self._dump(self.total), "feedback": self.feedback}
 
     def load(self, data: dict[str, Any]) -> None:
         try:
             self.started_at = datetime.fromisoformat(data["started_at"])
             self.days = {k: self._undump(v) for k, v in (data.get("days") or {}).items()}
             self.total = self._undump(data.get("total") or {})
+            self.feedback = {str(k): {"up": int(v.get("up", 0)), "down": int(v.get("down", 0))} for k, v in (data.get("feedback") or {}).items() if isinstance(v, dict)}
         except (KeyError, ValueError, TypeError) as exc:
             log.warning("統計狀態載入失敗，改用空白：%s", exc)
 

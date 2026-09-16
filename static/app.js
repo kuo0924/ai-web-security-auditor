@@ -360,6 +360,15 @@ function renderResult(r) {
   els.results.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
+// 修復 Prompt 的 👍👎：只送 kind + id + 方向，每個項目每個瀏覽器只投一次（localStorage 記住）
+const voteKey = (kind, id) => `fb:${kind}:${id}`;
+function votedFor(kind, id) { try { return localStorage.getItem(voteKey(kind, id)); } catch { return null; } }
+function voteButtons(kind, id) {
+  const v = votedFor(kind, id);
+  const b = (vote, glyph, title) => `<button type="button" data-vote="${vote}" data-kind="${kind}" data-id="${esc(id)}" title="${title}" aria-label="${title}" aria-pressed="${v === vote}" class="vote${v === vote ? ' vote-on' : ''}" ${v ? 'disabled' : ''}>${glyph}</button>`;
+  return `<span class="inline-flex gap-1" data-vote-group>${b('up', '👍', '這段有幫助')}${b('down', '👎', '這段沒幫助')}</span>`;
+}
+
 function renderSnippets(r) {
   const list = r.config_snippets || [];
   show(els.snippetsSection, list.length > 0);
@@ -367,7 +376,7 @@ function renderSnippets(r) {
     <details class="border-b hair" ${i === 0 ? 'open' : ''}>
       <summary class="py-4 flex flex-wrap items-center justify-between gap-3">
         <span class="text-sm text-slate-200"><span class="chev font-mono text-slate-600 mr-2">›</span>${esc(s.title)} <span class="font-mono text-[11px] text-slate-500 ml-2">${esc(s.filename)}</span></span>
-        <button data-copy="snippet" data-index="${i}" class="shrink-0 font-mono text-[11px] px-3 py-1.5 border hair rounded-sm text-slate-300 hover:border-indigo-400 hover:text-indigo-200">COPY</button>
+        <span class="shrink-0 inline-flex items-center gap-2">${voteButtons('snippet', s.filename)}<button data-copy="snippet" data-index="${i}" class="font-mono text-[11px] px-3 py-1.5 border hair rounded-sm text-slate-300 hover:border-indigo-400 hover:text-indigo-200">COPY</button></span>
       </summary>
       <pre class="mb-3 font-mono text-[12px] text-slate-300 leading-relaxed border hair rounded p-4 bg-slate-950/60">${esc(s.content)}</pre>
       ${s.note ? `<p class="pb-4 text-[12px] text-slate-500">${esc(s.note)}</p>` : ''}
@@ -391,6 +400,7 @@ function issueRow(it, idx) {
         ${it.evidence ? `<div class="mt-4 font-mono text-[12px] text-slate-400 border-l-2 hair pl-3 break-all leading-relaxed">${esc(it.evidence)}</div>` : ''}
         <div class="mt-5 flex flex-wrap items-center gap-4">
           <button data-copy="issue" data-index="${idx}" class="rounded px-4 py-2 text-sm font-medium bg-indigo-500 hover:bg-indigo-400 text-white">複製修復 Prompt</button>
+          ${voteButtons('issue', it.id)}
           <details class="w-full">
             <summary class="font-mono text-[12px] text-slate-500 hover:text-slate-300"><span class="chev">›</span> 檢視 Prompt 內容</summary>
             <pre class="mt-3 font-mono text-[12px] text-slate-300 leading-relaxed border hair rounded p-4 bg-slate-950/60">${esc(it.fix_prompt)}</pre>
@@ -460,7 +470,7 @@ function renderConsult(c) {
         <details class="border-b hair">
           <summary class="py-3 flex items-center justify-between gap-4">
             <span class="text-sm text-slate-200"><span class="chev font-mono text-slate-600 mr-2">›</span>${esc(fp.title || fp.issue_id)}</span>
-            <button data-copy="ai" data-index="${i}" class="shrink-0 font-mono text-[11px] px-3 py-1.5 border hair rounded-sm text-slate-300 hover:border-indigo-400 hover:text-indigo-200">COPY</button>
+            <span class="shrink-0 inline-flex items-center gap-2">${voteButtons('ai', (fp.issue_ids || [fp.issue_id || 'general']).join('+'))}<button data-copy="ai" data-index="${i}" class="font-mono text-[11px] px-3 py-1.5 border hair rounded-sm text-slate-300 hover:border-indigo-400 hover:text-indigo-200">COPY</button></span>
           </summary>
           <pre class="pb-4 font-mono text-[12px] text-slate-400 leading-relaxed">${esc(fp.prompt)}</pre>
         </details>`).join('')}</div>
@@ -524,6 +534,21 @@ document.addEventListener('click', (e) => {
   if (btn.dataset.copy === 'snippet' && state.scan) copyText(state.scan.config_snippets[i].content);
   if (btn.dataset.copy === 'badge-md') copyText(els.badgeMd.textContent);
   if (btn.dataset.copy === 'badge-html') copyText(els.badgeHtml.textContent);
+});
+
+document.addEventListener('click', async (e) => {
+  const btn = e.target.closest('[data-vote]');
+  if (!btn || btn.disabled) return;
+  e.preventDefault();
+  const { vote, kind, id } = btn.dataset;
+  btn.closest('[data-vote-group]').querySelectorAll('button').forEach((b) => { b.disabled = true; });
+  btn.classList.add('vote-on'); btn.setAttribute('aria-pressed', 'true');
+  try { localStorage.setItem(voteKey(kind, id), vote); } catch { /* 無痕模式 */ }
+  if (state.mode === 'sample') { toast('範例報告的回饋不會送出'); return; }
+  try {
+    const r = await fetch('/api/feedback', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ kind, issue_id: id, vote }) });
+    toast(r.ok ? '感謝回饋，會用來改進修復 Prompt' : `回饋沒送出（HTTP ${r.status}）`);
+  } catch { toast('回饋沒送出，請稍後再試'); }
 });
 
 renderHistory();

@@ -26,6 +26,12 @@ function render(s) {
   const p = s.since_start.top_platforms || [];
   $('#platforms').innerHTML = p.length ? p.map(([name, n]) => row(name, n)).join('') : '<div class="py-3 text-sm text-slate-600">還沒有資料</div>';
   $('#daily').innerHTML = (s.daily || []).slice().reverse().map(d => `<tr class="border-t hair text-slate-300"><td class="py-2">${esc(d.date)}</td><td class="py-2 text-right tabular-nums">${d.scans}</td><td class="py-2 text-right tabular-nums">${d.consults}</td><td class="py-2 text-right tabular-nums">${d.unique_ips}</td></tr>`).join('') || '<tr><td colspan="4" class="py-3 text-slate-600">還沒有資料</td></tr>';
+  const fb = s.feedback || { items: [], total_up: 0, total_down: 0 };
+  const KIND = { issue: '規則 Prompt', ai: 'AI Prompt', snippet: '設定檔' };
+  $('#feedback').innerHTML = fb.items.length
+    ? fb.items.map(it => `<tr class="border-t hair text-slate-300"><td class="py-2 text-slate-500">${esc(KIND[it.kind] || it.kind)}</td><td class="py-2">${esc(it.id)}</td><td class="py-2 text-right tabular-nums">${it.up}</td><td class="py-2 text-right tabular-nums">${it.down}</td><td class="py-2 text-right tabular-nums">${it.helpful == null ? '—' : it.helpful + '%'}</td></tr>`).join('')
+    : '<tr><td colspan="5" class="py-3 text-slate-600">還沒有回饋</td></tr>';
+  $('#feedback-total').textContent = `共 ${fb.total_up} 個有幫助 · ${fb.total_down} 個沒幫助（只記項目 ID 的計數）`;
   const b = s.llm_budget || {};
   $('#budget').innerHTML = row('估算花費', `$${(b.claude_usd_today ?? 0).toFixed(3)} / $${b.claude_usd_limit ?? '—'}`) + row('AI 呼叫次數（不分供應商）', `${b.used_today ?? 0} / ${b.daily_limit ?? '—'}`);
 }

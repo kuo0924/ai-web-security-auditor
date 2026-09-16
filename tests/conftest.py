@@ -56,6 +56,7 @@ def fresh_state(monkeypatch):
     patch("scan_limiter", m.SlidingWindowLimiter(3, 60))
     patch("consult_limiter", m.SlidingWindowLimiter(10, 60))
     patch("consult_hourly_limiter", m.SlidingWindowLimiter(30, 3600))
+    patch("feedback_limiter", m.SlidingWindowLimiter(30, 60))
     patch("llm_budget", m.DailyBudget(300, 2.0))
     patch("stats", m.UsageStats())
     patch("STATS_TOKEN", "")

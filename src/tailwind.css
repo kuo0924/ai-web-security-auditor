@@ -1,3 +1,10 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer components {
+  .vote { @apply font-mono text-[12px] leading-none px-2 py-1.5 border border-slate-800 rounded-sm text-slate-500 transition-colors; }
+  .vote:not([disabled]):hover { @apply text-slate-100 border-slate-500; }
+  .vote-on { @apply text-indigo-200 border-indigo-400 bg-indigo-500/10; }
+  .vote[disabled]:not(.vote-on) { @apply opacity-40; }
+}

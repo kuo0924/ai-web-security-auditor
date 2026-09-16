@@ -17,6 +17,7 @@ AI-Powered Passive Web Security Auditor
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import ipaddress
 import json
 import os
@@ -24,7 +25,7 @@ import re
 import time
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime, timedelta
-from typing import Any, Optional
+from typing import Any, Literal, Optional
 from urllib.parse import urlparse
 
 import httpx
@@ -121,6 +122,12 @@ class ConsultRequest(BaseModel):
     turnstile_token: Optional[str] = Field(None, max_length=4096)
 
 
+class FeedbackRequest(BaseModel):
+    kind: Literal["issue", "ai", "snippet"]  # 規則修復 Prompt｜AI 架構專屬 Prompt｜設定檔片段
+    issue_id: str = Field(..., min_length=1, max_length=80, pattern=r"^[A-Za-z0-9_+./-]+$")
+    vote: Literal["up", "down"]
+
+
 async def verify_turnstile(token: str, ip: str) -> bool:
     async with httpx.AsyncClient(timeout=10.0) as client:
         r = await client.post(
@@ -165,8 +172,22 @@ OWN_SECURITY_HEADERS = {
 }
 
 
+def asset_version() -> str:
+    """static/ 檔案內容的短雜湊：頁面引用 /static/x.js?v=<hash>，改版後瀏覽器一定拿到新檔，沒改版就能長期快取。"""
+    h = hashlib.sha256()
+    for name in ("app.js", "stats.js", "tailwind.css"):
+        try:
+            h.update((BASE_DIR / "static" / name).read_bytes())
+        except OSError:
+            pass
+    return h.hexdigest()[:10]
+
+
+ASSET_VERSION = asset_version()
+
+
 def render_page(filename: str, request: Request) -> Response:
-    """讀靜態頁並在 <!--CF_BEACON--> 注入 Cloudflare Web Analytics 腳本（有設 token 才注入）。"""
+    """讀靜態頁、把 /static/ 引用加上版本參數，並在 <!--CF_BEACON--> 注入 Cloudflare Web Analytics 腳本（有設 token 才注入）。"""
     if request.method == "HEAD":
         return Response(status_code=200, media_type="text/html; charset=utf-8")
     html = (BASE_DIR / filename).read_text(encoding="utf-8")
@@ -174,7 +195,10 @@ def render_page(filename: str, request: Request) -> Response:
     if CF_BEACON_TOKEN:
         token = json.dumps(CF_BEACON_TOKEN)  # 逸出成 JSON 字串，避免 token 內容破壞屬性
         beacon = f"<script type=\"module\" src=\"https://static.cloudflareinsights.com/beacon.min.js\" data-cf-beacon='{{\"token\": {token}}}'></script>"
-    return HTMLResponse(html.replace("<!--CF_BEACON-->", beacon))
+    html = html.replace("<!--CF_BEACON-->", beacon)
+    for name in ("tailwind.css", "app.js", "stats.js"):
+        html = html.replace(f'"/static/{name}"', f'"/static/{name}?v={ASSET_VERSION}"')
+    return HTMLResponse(html)
 
 
 @app.middleware("http")
@@ -185,6 +209,9 @@ async def own_security_headers(request: Request, call_next):
     response = await call_next(request)
     for k, v in OWN_SECURITY_HEADERS.items():
         response.headers.setdefault(k, v)
+    if request.url.path.startswith("/static/"):
+        # 帶版本參數的引用可以永久快取；直接打 /static/x.js 的每次都重新驗證，避免部署後拿到舊檔
+        response.headers["Cache-Control"] = "public, max-age=31536000, immutable" if request.query_params.get("v") == ASSET_VERSION else "no-cache"
     return response
 
 
@@ -257,6 +284,7 @@ async def health(request: Request):
     provider = providers[0] if providers else "none"
     return {
         "ok": True,
+        "commit": GIT_COMMIT,
         "llm_provider": provider,
         "llm_providers_order": providers,
         "llm_model": {"openai": OPENAI_MODEL, "anthropic": ANTHROPIC_MODEL}.get(provider),
@@ -419,6 +447,17 @@ async def api_ai_consult(body: ConsultRequest, request: Request):
     result = await generate_consult(body.scan)
     stats.record_consult(ip, result.get("mode", "fallback"), followup=False)
     return result
+
+
+@app.post("/api/feedback")
+async def api_feedback(body: FeedbackRequest, request: Request):
+    """修復 Prompt 的 👍👎：只累計「kind:id」的正負計數（進 /api/stats 與狀態快照），不記 IP、不記網址。"""
+    ip = client_ip(request)
+    allowed, retry_after = feedback_limiter.hit(ip)
+    if not allowed:
+        raise HTTPException(status_code=429, detail=f"回饋太頻繁，請 {retry_after} 秒後再試", headers={"Retry-After": str(retry_after)})
+    counts = stats.record_feedback(body.kind, body.issue_id, body.vote)
+    return {"ok": True, "kind": body.kind, "id": body.issue_id, **counts}
 
 
 @app.post("/api/knowledge/reload")

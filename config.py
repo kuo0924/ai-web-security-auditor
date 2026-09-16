@@ -66,6 +66,8 @@ LLM_MAX_TOKENS = int(os.getenv("LLM_MAX_TOKENS", "6000"))  # 思考型模型的�
 OPENAI_REASONING_EFFORT = os.getenv("OPENAI_REASONING_EFFORT", "low" if OPENAI_MODEL.startswith("gemini") else "").strip()
 LLM_DAILY_BUDGET = int(os.getenv("LLM_DAILY_BUDGET", "300"))  # 全站每日 LLM 呼叫上限，超過就降級成規則模式；0 = 不限制
 CONSULT_HOURLY_LIMIT = int(os.getenv("CONSULT_HOURLY_LIMIT", "30"))  # 同一 IP 每小時 AI 顧問呼叫上限
+FEEDBACK_RATE_LIMIT = (int(os.getenv("FEEDBACK_RATE_LIMIT", "30")), 60)  # 修復 Prompt 👍👎 回饋，每 IP 每分鐘
+GIT_COMMIT = (os.getenv("RENDER_GIT_COMMIT") or os.getenv("GIT_COMMIT") or "")[:7]  # Render 會注入，/api/health 用來確認部署到哪個版本
 
 STATS_TOKEN = os.getenv("STATS_TOKEN", "").strip()  # 設了就要帶 ?token= 才能看 /api/stats；留空 = 公開（只有彙總數字）
 # Cloudflare Web Analytics 的 beacon token（公開的站台識別碼，會出現在 HTML 裡，不是機密）；留空 = 不載入分析腳本

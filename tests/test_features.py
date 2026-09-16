@@ -37,7 +37,7 @@ def test_own_site_hygiene(fresh_state, monkeypatch):
     assert "'unsafe-inline'" not in script_src and "object-src 'none'" in csp
     assert r.headers["strict-transport-security"].startswith("max-age=31536000")
     assert r.headers["cross-origin-opener-policy"] == "same-origin"
-    assert "<script>" not in r.text and 'src="/static/app.js"' in r.text
+    assert "<script>" not in r.text and f'src="/static/app.js?v={m.ASSET_VERSION}"' in r.text and f'href="/static/tailwind.css?v={m.ASSET_VERSION}"' in r.text
     assert c.get("/static/app.js").status_code == 200 and c.get("/static/stats.js").status_code == 200
     assert "mailto:a112221040@mail.shu.edu.tw" in r.text and "排除" in r.text
     # 自我體檢：用 evaluate() 對自己的回應打分，應該是 A 且沒有 csp_weak
