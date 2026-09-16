@@ -5,7 +5,6 @@ import json
 import time
 
 import httpx
-
 from conftest import fr, m
 
 

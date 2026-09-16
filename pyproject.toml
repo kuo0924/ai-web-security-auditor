@@ -1,0 +1,23 @@
+[tool.ruff]
+line-length = 170
+target-version = "py311"
+extend-exclude = ["node_modules", ".venv", "static"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP"]
+# F403/F405：模組之間刻意用 star import 分層（config ← netsafe ← scanner ← knowledge ← state ← advisor ← main）
+# E501：長字串（白話說明、修復 Prompt）不折行比較好讀
+ignore = ["F403", "F405", "E501", "B008", "UP007", "UP035", "UP045"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["config", "netsafe", "scanner", "knowledge", "state", "advisor", "main"]
+
+[tool.mypy]
+python_version = "3.11"
+ignore_missing_imports = true
+check_untyped_defs = false
+warn_unused_ignores = false
+exclude = ["node_modules", ".venv", "tests"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/conftest.py" = ["E402"]

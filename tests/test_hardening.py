@@ -4,9 +4,8 @@ import json
 import time
 
 import httpx
-from fastapi.testclient import TestClient
-
 from conftest import fr, m
+from fastapi.testclient import TestClient
 
 
 def test_body_size_limit(fresh_state):

@@ -3,6 +3,22 @@
 **AI-Powered Passive Web Security Auditor**
 給用 Cursor / v0 / Bolt / Lovable 搭站、但沒有資安背景的開發者與學生。輸入網址，30 秒內拿到評分、白話風險解讀，以及可以直接貼給 AI 的修復 Prompt。
 
+**Live：https://ai-web-security-auditor.onrender.com** · [範例報告](https://ai-web-security-auditor.onrender.com/) · [API 文件](https://ai-web-security-auditor.onrender.com/api/docs) · MIT License
+
+<details>
+<summary><strong>English summary</strong></summary>
+
+A passive, non-intrusive web security auditor for people who ship sites with AI tools (Cursor, v0, Bolt, Lovable) but have no security background. Paste a URL and get, in about 30 seconds:
+
+- a 0–100 score and A/B/C/F grade based on HTTPS enforcement, security headers, cookie flags, leaked API keys in front-end code (including Supabase `service_role` JWTs), exposed `/.env` and `/.git/config`, mixed content and public source maps, plus ten advisory checks (CSP quality, SRI, TLS expiry, SPF/DMARC, outdated libraries…);
+- a plain-language explanation of each finding;
+- copy-paste fix prompts for Cursor / Claude, tailored to the detected stack (Next.js, Vercel, Netlify, Nginx, Express…), and ready-to-use config files (`next.config.js`, `vercel.json`, `_headers`, nginx, `.htaccess`);
+- an AI advisor (Claude Sonnet 5 with Gemini fallback, daily cost cap) you can ask follow-up questions.
+
+It only sends the handful of GET requests a normal browser would (homepage, two same-origin scripts and their source maps, `/.env*`, `/.git/config`, `security.txt`) and queries public DNS. No injection, brute force, directory enumeration or port scanning. SSRF-safe: every hop is resolved and pinned to a public IP. Single-file FastAPI backend, static front end, 77 offline tests, deploys to Render's free tier. See [DEPLOY.md](DEPLOY.md).
+
+</details>
+
 ## 3 步驟啟動（Windows PowerShell）
 
 步驟 1：建立虛擬環境並安裝依賴
@@ -42,12 +58,17 @@ python -m pytest -q
 
 | 層 | 位置 | 說明 |
 |---|---|---|
-| 硬規則檢測層 | `main.py` §3–4 | 純被動 GET、確定性計分、毫秒級，不用 LLM |
-| AI 顧問層 | `main.py` §6 | 把檢測 JSON 交給 OpenAI 或 Claude，產出白話診斷與架構專屬修復 Prompt，支援追問 |
-| 知識庫層 | `knowledge/` | 標籤式檢索（RAG 預留介面）+ few-shot 範例，改 Markdown 就能讓建議越調越準 |
-| 前端 | `index.html` | 單頁 Tailwind 深色介面，分數儀表板、風險卡片、一鍵複製 Prompt、AI 追問、範例報告、分享連結（報告壓縮進網址 `#`，不經伺服器）、重掃比較（localStorage）、列印 |
-| 設定檔產生 | `main.py` `build_config_snippets()` | 依平台直接產出 next.config.js / vercel.json / _headers / nginx / .htaccess / helmet / hooks.server.ts / nuxt.config.ts，只含缺少的標頭，不經 AI |
-| 測試 | `tests/` | pytest，`python -m pytest`；GitHub Actions 每次 push 自動跑 |
+| 設定 | `config.py` | 所有環境變數、逾時、限流參數、模型與價格表 |
+| 網路安全 | `netsafe.py` | SSRF 防護：黑名單主機、每個 IP 都要是公網、連線釘在驗證過的 IP、每一跳轉址重新驗證、回應大小上限 |
+| 硬規則檢測層 | `scanner.py` | 純被動 GET、確定性計分、毫秒級，不用 LLM；技術棧辨識、`build_config_snippets()` 設定檔產生、`run_scan()` 併發抓取 |
+| 知識庫層 | `knowledge.py` + `knowledge/` | 標籤式檢索（RAG 預留介面）+ few-shot 範例，改 Markdown 就能讓建議越調越準 |
+| 狀態 | `state.py` | 滑動視窗限流、每日額度（次數 + 美元）、使用統計、徽章快取、Upstash 快照持久化 |
+| AI 顧問層 | `advisor.py` | Claude 官方 SDK（結構化輸出 + prompt cache）→ Gemini 相容端點 → 規則模式三段備援，支援追問 |
+| HTTP 層 | `main.py` | FastAPI 路由、安全標頭 middleware、Turnstile / API 金鑰、頁面渲染 |
+| 前端 | `index.html` / `static/app.js` | 單頁 Tailwind 深色介面，分數儀表板、風險卡片、一鍵複製 Prompt、AI 追問、範例報告、分享連結（報告壓縮進網址 `#`，不經伺服器）、重掃比較（localStorage）、列印 |
+| 測試 / 品質 | `tests/`、`pyproject.toml` | pytest（`python -m pytest`）、ruff、mypy；GitHub Actions 每次 push 自動跑 |
+
+模組之間刻意用 star import 單向分層：`config ← netsafe ← scanner ← knowledge ← state ← advisor ← main`。
 
 ## 檢測規則與計分（基礎分 100）
 

@@ -11,7 +11,25 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 os.environ.setdefault("LLM_PROVIDER", "none")
 
+import advisor  # noqa: E402,E401
+import config
+import knowledge
 import main as m  # noqa: E402
+import netsafe
+import scanner
+import state
+
+MODULES = (config, netsafe, scanner, knowledge, state, advisor, m)
+
+
+def patch_all(monkeypatch, name, value):
+    """拆模組後同一個名稱會被 star import 到多個模組，要一起換掉才有效。"""
+    hit = False
+    for mod in MODULES:
+        if hasattr(mod, name):
+            monkeypatch.setattr(mod, name, value)
+            hit = True
+    assert hit, f"no module has attribute {name}"
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
@@ -31,13 +49,15 @@ def report():
 
 @pytest.fixture
 def fresh_state(monkeypatch):
-    """每個 API 測試都用乾淨的限流器、額度與統計，且不碰真的 LLM。"""
-    monkeypatch.setattr(m, "LLM_PROVIDER", "none")
-    monkeypatch.setattr(m, "scan_limiter", m.SlidingWindowLimiter(3, 60))
-    monkeypatch.setattr(m, "consult_limiter", m.SlidingWindowLimiter(10, 60))
-    monkeypatch.setattr(m, "consult_hourly_limiter", m.SlidingWindowLimiter(30, 3600))
-    monkeypatch.setattr(m, "llm_budget", m.DailyBudget(300, 2.0))
-    monkeypatch.setattr(m, "stats", m.UsageStats())
-    monkeypatch.setattr(m, "STATS_TOKEN", "")
-    monkeypatch.setattr(m, "CF_BEACON_TOKEN", "")
-    return m
+    """每個 API 測試都用乾淨的限流器、額度與統計，且不碰真的 LLM。回傳 patch(name, value) 方便測試內再改。"""
+    def patch(name, value):
+        patch_all(monkeypatch, name, value)
+    patch("LLM_PROVIDER", "none")
+    patch("scan_limiter", m.SlidingWindowLimiter(3, 60))
+    patch("consult_limiter", m.SlidingWindowLimiter(10, 60))
+    patch("consult_hourly_limiter", m.SlidingWindowLimiter(30, 3600))
+    patch("llm_budget", m.DailyBudget(300, 2.0))
+    patch("stats", m.UsageStats())
+    patch("STATS_TOKEN", "")
+    patch("CF_BEACON_TOKEN", "")
+    return patch

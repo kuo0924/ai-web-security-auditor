@@ -3,7 +3,6 @@ import asyncio
 import ipaddress
 
 import pytest
-
 from conftest import fr, m
 
 

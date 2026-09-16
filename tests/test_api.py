@@ -1,11 +1,10 @@
 """HTTP 層：限流、授權、統計、健康檢查、靜態頁與 beacon 注入。用 TestClient，不碰外部網路。"""
-from fastapi.testclient import TestClient
-
 from conftest import m
+from fastapi.testclient import TestClient
 
 
 def test_scan_rejections_rate_limit_and_stats(fresh_state, report):
-    fresh_state.scan_limiter = m.SlidingWindowLimiter(2, 60)
+    fresh_state("scan_limiter", m.SlidingWindowLimiter(2, 60))
     c = TestClient(m.app)
     s = c.get("/api/stats").json()
     assert s["today"]["scans"] == 0 and s["since_start"]["unique_ips"] == 0
@@ -36,7 +35,7 @@ def test_scan_rejections_rate_limit_and_stats(fresh_state, report):
 
 def test_stats_token(fresh_state):
     c = TestClient(m.app)
-    m.STATS_TOKEN = "abc"
+    fresh_state("STATS_TOKEN", "abc")
     assert c.get("/api/stats").status_code == 403
     assert c.get("/api/stats?token=abc").status_code == 200
 
@@ -76,7 +75,7 @@ def test_pages_security_headers_and_beacon(fresh_state):
     assert r.status_code == 200 and "cloudflareinsights" not in r.text and "<!--CF_BEACON-->" not in r.text
     assert r.headers["x-frame-options"] == "DENY" and "content-security-policy" in r.headers
     assert c.head("/").status_code == 200 and c.head("/stats").status_code == 200
-    m.CF_BEACON_TOKEN = 'abc123"x'
+    fresh_state("CF_BEACON_TOKEN", 'abc123"x')
     r = c.get("/")
     assert "static.cloudflareinsights.com/beacon.min.js" in r.text
     assert 'data-cf-beacon=\'{"token": "abc123\\"x"}\'' in r.text

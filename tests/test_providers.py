@@ -5,9 +5,8 @@ import json
 import anthropic
 import httpx
 import pytest
+from conftest import m, patch_all
 from starlette.requests import Request
-
-from conftest import m
 
 GOOD = json.dumps({"summary": "ok", "risk_level": "中", "priority_actions": ["a"],
                    "fix_prompts": [{"issue_ids": ["csp"], "title": "t", "prompt": "p"}], "stack_note": "n"})
@@ -71,14 +70,14 @@ def gemini_ok(url, payload):
 @pytest.fixture
 def providers(monkeypatch):
     fake = FakeAnthropic()
-    monkeypatch.setattr(m, "LLM_PROVIDER", "anthropic,openai")
-    monkeypatch.setattr(m, "ANTHROPIC_API_KEY", "sk-ant-test")
-    monkeypatch.setattr(m, "ANTHROPIC_MODEL", "claude-sonnet-5")
-    monkeypatch.setattr(m, "OPENAI_API_KEY", "gem-test")
-    monkeypatch.setattr(m, "OPENAI_MODELS", ["gemini-x"])
-    monkeypatch.setattr(m, "OPENAI_MODEL", "gemini-x")
-    monkeypatch.setattr(m, "_anthropic_client", fake)
-    monkeypatch.setattr(m, "llm_budget", m.DailyBudget(100, 0.10))
+    patch_all(monkeypatch, "LLM_PROVIDER", "anthropic,openai")
+    patch_all(monkeypatch, "ANTHROPIC_API_KEY", "sk-ant-test")
+    patch_all(monkeypatch, "ANTHROPIC_MODEL", "claude-sonnet-5")
+    patch_all(monkeypatch, "OPENAI_API_KEY", "gem-test")
+    patch_all(monkeypatch, "OPENAI_MODELS", ["gemini-x"])
+    patch_all(monkeypatch, "OPENAI_MODEL", "gemini-x")
+    patch_all(monkeypatch, "_anthropic_client", fake)
+    patch_all(monkeypatch, "llm_budget", m.DailyBudget(100, 0.10))
     monkeypatch.setattr(m.httpx, "AsyncClient", make_fake_httpx(gemini_ok))
     return fake
 
@@ -129,11 +128,11 @@ def test_all_providers_down_uses_rules(providers, report, monkeypatch):
 
 
 def test_provider_order_and_none(monkeypatch):
-    monkeypatch.setattr(m, "ANTHROPIC_API_KEY", "")
-    monkeypatch.setattr(m, "OPENAI_API_KEY", "x")
-    monkeypatch.setattr(m, "LLM_PROVIDER", "auto")
+    patch_all(monkeypatch, "ANTHROPIC_API_KEY", "")
+    patch_all(monkeypatch, "OPENAI_API_KEY", "x")
+    patch_all(monkeypatch, "LLM_PROVIDER", "auto")
     assert m.configured_providers() == ["openai"]
-    monkeypatch.setattr(m, "LLM_PROVIDER", "none")
+    patch_all(monkeypatch, "LLM_PROVIDER", "none")
     assert m.configured_providers() == []
 
 
@@ -149,11 +148,11 @@ def test_gemini_model_fallback_chain(monkeypatch, report):
             return httpx.Response(503, request=req, json={"error": "overloaded"})
         return gemini_ok(url, payload)
 
-    monkeypatch.setattr(m, "LLM_PROVIDER", "openai")
-    monkeypatch.setattr(m, "OPENAI_API_KEY", "test")
-    monkeypatch.setattr(m, "ANTHROPIC_API_KEY", "")
-    monkeypatch.setattr(m, "OPENAI_MODELS", ["first", "second", "third"])
-    monkeypatch.setattr(m, "llm_budget", m.DailyBudget(2, 0))
+    patch_all(monkeypatch, "LLM_PROVIDER", "openai")
+    patch_all(monkeypatch, "OPENAI_API_KEY", "test")
+    patch_all(monkeypatch, "ANTHROPIC_API_KEY", "")
+    patch_all(monkeypatch, "OPENAI_MODELS", ["first", "second", "third"])
+    patch_all(monkeypatch, "llm_budget", m.DailyBudget(2, 0))
     monkeypatch.setattr(m.httpx, "AsyncClient", make_fake_httpx(handler))
     text, meta = asyncio.run(m.llm_complete("s", [{"role": "user", "content": "u"}], json_schema={"type": "object"}))
     assert meta["model"] == "third" and seen == ["first", "second", "third"]
@@ -184,11 +183,11 @@ def _req(headers, client=("10.0.0.5", 0)):
 
 
 def test_client_ip_behind_proxy(monkeypatch):
-    monkeypatch.setattr(m, "TRUST_PROXY", True)
+    patch_all(monkeypatch, "TRUST_PROXY", True)
     assert m.client_ip(_req({"x-forwarded-for": "1.1.1.1, 10.20.0.3"})) == "1.1.1.1"
     assert m.client_ip(_req({"x-forwarded-for": "9.9.9.9, 1.1.1.1, 10.20.0.3"})) == "1.1.1.1"
     assert m.client_ip(_req({"cf-connecting-ip": "8.8.8.8", "x-forwarded-for": "9.9.9.9, 1.1.1.1"})) == "8.8.8.8"
     assert m.client_ip(_req({"x-forwarded-for": "10.1.1.1, 10.2.2.2"})) == "10.2.2.2"
     assert m.client_ip(_req({})) == "10.0.0.5"
-    monkeypatch.setattr(m, "TRUST_PROXY", False)
+    patch_all(monkeypatch, "TRUST_PROXY", False)
     assert m.client_ip(_req({"x-forwarded-for": "1.1.1.1"})) == "10.0.0.5"
