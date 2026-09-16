@@ -260,6 +260,25 @@
         評分反映基礎防線的配置狀況，不代表網站沒有其他漏洞。
       </p>
     </div>
+
+    <!-- 上線前五問：外部掃描只能回答第五題，其餘四題提醒使用者自查 -->
+    <section id="five-questions" class="max-w-5xl mx-auto px-5 mt-16 mb-4 border-t hair pt-10">
+      <div class="grid md:grid-cols-12 gap-6 md:gap-8">
+        <div class="md:col-span-3">
+          <div class="kicker mb-2">掃描之外 · 上線前五問</div>
+          <p class="text-[12px] text-slate-500 leading-relaxed">體檢儀只能回答第五題。前四題只有你自己，和讀得到程式碼的工具，答得出來。</p>
+        </div>
+        <ol class="md:col-span-9 grid sm:grid-cols-2 gap-x-8 gap-y-5 text-sm text-slate-300 leading-relaxed">
+          <li><span class="font-mono text-[11px] text-indigo-300 mr-2">01</span><span class="text-slate-100">哪些東西被偷會出大事？</span><br><span class="text-slate-400">金鑰、金流 HashKey、資料庫連線、使用者個資：只能存在後端與環境變數。</span></li>
+          <li><span class="font-mono text-[11px] text-indigo-300 mr-2">02</span><span class="text-slate-100">誰能碰哪些資料？</span><br><span class="text-slate-400">每支 API 都在後端驗證身分與權限，前端送來的 user id、價格一律不信。</span></li>
+          <li><span class="font-mono text-[11px] text-indigo-300 mr-2">03</span><span class="text-slate-100">哪一段是你管不到的？</span><br><span class="text-slate-400">第三方套件、金流、AI API：鎖版本、定期 audit、金鑰限制來源。</span></li>
+          <li><span class="font-mono text-[11px] text-indigo-300 mr-2">04</span><span class="text-slate-100">哪些規則絕對不能被打破？</span><br><span class="text-slate-400">「一般會員永遠讀不到別人的訂單」這種句子，寫成測試，每次改完都跑。</span></li>
+          <li><span class="font-mono text-[11px] text-indigo-300 mr-2">05</span><span class="text-slate-100">外面有哪些門是開著的？</span><br><span class="text-slate-400">HTTPS、安全標頭、Cookie、/.env、/.git、前端金鑰：這一題交給上面的體檢。</span></li>
+          <li class="text-[12px] text-slate-500 self-end">讀得到程式碼的掃描：OpenAI Codex Security（在 Codex 輸入 <span class="font-mono text-slate-400">/plugins</span> 安裝，再說一句「Run a Codex Security scan on this repository.」）或 Claude Code 的 <span class="font-mono text-slate-400">/security-review</span>。只在自己的專案上跑。</li>
+        </ol>
+      </div>
+      <p class="mt-8 font-mono text-[11px] text-slate-600">框架整理自 Gary Chen〈<a href="https://www.youtube.com/watch?v=t9WA-BkLUps" rel="noopener" class="underline decoration-slate-700 underline-offset-4 hover:text-slate-300">給非技術人員的資安教學，Vibe Coding 必學的基本功</a>〉。</p>
+    </section>
   </main>
 
   <footer class="border-t hair mt-8">

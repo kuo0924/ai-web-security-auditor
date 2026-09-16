@@ -51,7 +51,7 @@ class KnowledgeBase:
     def _norm(name: str) -> str:
         return re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")
 
-    def retrieve(self, tech: dict[str, Any], issue_ids: list[str], max_chars: int = 7000) -> str:
+    def retrieve(self, tech: dict[str, Any], issue_ids: list[str], max_chars: int = 12000) -> str:
         wanted = {"general", tech.get("platform", "")} | {self._norm(s) for s in tech.get("stack", [])} | set(issue_ids)
         chosen = [d for d in self.docs if d["tags"] & wanted]
         parts: list[str] = []

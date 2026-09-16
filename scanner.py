@@ -217,6 +217,9 @@ SECRET_PATTERNS: list[dict[str, Any]] = [
     {"id": "huggingface", "label": "Hugging Face Token (hf_…)", "regex": re.compile(r"\bhf_[A-Za-z0-9]{34}\b"), "mixed_case": True},
     {"id": "groq", "label": "Groq API Key (gsk_…)", "regex": re.compile(r"\bgsk_[A-Za-z0-9]{52}\b"), "mixed_case": True},
     {"id": "npm", "label": "npm Token (npm_…)", "regex": re.compile(r"\bnpm_[A-Za-z0-9]{36}\b"), "mixed_case": True},
+    # 台灣金流：藍新 NewebPay（HashKey 32 碼 / HashIV 16 碼）與綠界 ECPay（HashKey / HashIV 各 16 碼）。
+    # 這兩把只該在後端存在；放到前端等於任何人都能偽造、解密交易資料（2026-08 What'Sub 事件被通報的就是這類問題）。
+    {"id": "tw_payment", "label": "藍新 / 綠界金流 HashKey / HashIV（只能放後端）", "regex": re.compile(r"\bHash(?:Key|IV)\b\s*[:=]\s*['\"]([A-Za-z0-9]{16,32})['\"]"), "mixed_case": True},
 ]
 JWT_PATTERN = re.compile(r"\beyJ[A-Za-z0-9_\-]{10,}\.eyJ[A-Za-z0-9_\-]{10,}\.[A-Za-z0-9_\-]{10,}\b")
 
@@ -273,7 +276,7 @@ def scan_secrets(sources: list[tuple[str, str]]) -> list[dict[str, Any]]:
     for source_name, text in sources:
         for pat in SECRET_PATTERNS:
             for m in pat["regex"].finditer(text):
-                token = m.group(0)
+                token = m.group(1) if m.lastindex else m.group(0)  # 有分組的只取金鑰本身，遮罩與去重都用它
                 if pat["mixed_case"] and not _looks_random(token):
                     continue
                 key = (pat["id"], token)

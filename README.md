@@ -89,7 +89,7 @@ python -m pytest -q
 
 評等：85 分以上 A、70–84 B、50–69 C、50 以下 F。
 `/.env` 與 `/.git/config` 會辨識 SPA 的 fallback 頁面（回 200 但內容是 HTML），不會誤判。
-金鑰特徵除了 OpenAI / Google / Stripe / AWS / GitHub / Slack / PEM 私鑰，還會解開前端出現的 JWT，看到 `role: service_role`（Supabase 的資料庫 root 金鑰）直接判定外洩；anon key 不會被誤報。
+金鑰特徵除了 OpenAI / Google / Stripe / AWS / GitHub / Slack / PEM 私鑰 / 藍新與綠界金流的 HashKey · HashIV，還會解開前端出現的 JWT，看到 `role: service_role`（Supabase 的資料庫 root 金鑰）直接判定外洩；anon key 不會被誤報。
 
 **不扣分的進階建議**（每項都附白話說明與修復 Prompt）：
 
@@ -154,7 +154,7 @@ python -m pytest -q
 ## 讓建議越調越準（不重訓模型）
 
 1. 在 `knowledge/` 新增或修改 Markdown，第一行寫 `tags: nextjs, csp, ...`。標籤會和偵測到的技術棧、缺失項目 id 做比對，命中的文件會注入 System Prompt。
-2. 在 `knowledge/fewshot.json` 放入你滿意的輸入／輸出範例，模型會模仿其風格。
+2. 在 `knowledge/fewshot.json` 放入你滿意的輸入／輸出範例，模型會模仿其風格。`knowledge/vibe-coding-launch.md`（tags: general）是每次都會帶上的「上線前五問」框架與 What'Sub 案例，研究筆記在 `docs/research/`。
 3. 呼叫 `POST /api/knowledge/reload`。
 4. 要升級成向量 RAG，只需改寫 `KnowledgeBase.retrieve()`。
 
