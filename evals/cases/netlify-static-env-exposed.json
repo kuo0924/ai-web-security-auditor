@@ -1,0 +1,214 @@
+{
+  "name": "netlify-static-env-exposed",
+  "description": "Netlify 靜態站把 .env 一起部署出去。顧問要把「刪掉並輪換裡面的密碼」排第一，設定檔應是 _headers / netlify.toml。",
+  "scan": {
+    "target": {
+      "input_url": "https://landing.netlify.app/",
+      "final_url": "https://landing.netlify.app/",
+      "hostname": "landing.netlify.app",
+      "scheme": "https",
+      "status_code": 200
+    },
+    "score": 25,
+    "grade": "F",
+    "grade_label": "高風險",
+    "tech": {
+      "stack": [
+        "Netlify"
+      ],
+      "platform": "netlify"
+    },
+    "issues": [
+      {
+        "id": "env_exposed",
+        "title": "/.env 檔案可被公開下載",
+        "category": "公開檔案裸露",
+        "severity": "critical",
+        "penalty": 30,
+        "description": "網站根目錄的 .env 可以被任何人直接下載，裡面通常有資料庫密碼、API 金鑰、JWT secret。這等於把保險箱鑰匙貼在大門上。",
+        "evidence": "/.env 回應 200 且內容符合特徵（135 bytes）",
+        "fix_prompt": "你是我的資深資安工程師。我的網站經被動檢測推測技術棧為：Netlify。請先讀取專案結構確認實際使用的框架與部署方式，再進行以下修改，修改後告訴我如何驗證。\n\n緊急任務：網站根目錄的 /.env 檔案可以被公開下載。請依序處理：1) 立刻撤銷並更換 .env 內所有金鑰、資料庫密碼與 secret；2) 把 .env 移出網站根目錄，或設定伺服器拒絕存取所有以點開頭的檔案；若是 Vercel/Netlify 這類平台，檢查 public/ 或靜態輸出目錄是否誤放了 .env，並改用平台的環境變數設定；3) 確認 .env 已在 .gitignore 且不在部署產物（build output / public 目錄）中；4) 修好後用瀏覽器或 curl 再次請求 /.env，應回傳 404 或 403。\n\n要求：1) 直接給我完整可貼上的程式碼或設定檔內容；2) 逐行說明用途；3) 指出可能的副作用與回滾方式；4) 不要改動與此任務無關的檔案。"
+      },
+      {
+        "id": "csp",
+        "title": "缺少 Content-Security-Policy (CSP)",
+        "category": "HTTP 安全標頭",
+        "severity": "high",
+        "penalty": 20,
+        "description": "沒有內容安全政策，代表只要任何一處有 XSS 漏洞（例如留言板沒過濾），攻擊者就能在你的網站上執行任意 JavaScript、偷 Cookie、改頁面。CSP 是最後一道防線。",
+        "evidence": "回應中沒有 Content-Security-Policy 標頭，HTML 也沒有對應的 <meta>",
+        "fix_prompt": "你是我的資深資安工程師。我的網站經被動檢測推測技術棧為：Netlify。請先讀取專案結構確認實際使用的框架與部署方式，再進行以下修改，修改後告訴我如何驗證。\n\n任務：建立 Content-Security-Policy。位置：public/_headers 檔案，或 netlify.toml 的 [[headers]] 區塊。步驟：1) 先盤點網站用到的外部資源（第三方腳本、字型、圖片、API、iframe）；2) 先以 `Content-Security-Policy-Report-Only` 上線，觀察瀏覽器 console 有沒有違規；3) 確認無誤後改成正式的 `Content-Security-Policy`。起手式：`default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'`。請依盤點結果把實際用到的網域加進對應指令，script-src 避免 'unsafe-inline'（若必須使用 inline script，請改用 nonce 或 hash 白名單）。\n\n要求：1) 直接給我完整可貼上的程式碼或設定檔內容；2) 逐行說明用途；3) 指出可能的副作用與回滾方式；4) 不要改動與此任務無關的檔案。"
+      },
+      {
+        "id": "x_frame_options",
+        "title": "缺少 X-Frame-Options（點擊劫持防護）",
+        "category": "HTTP 安全標頭",
+        "severity": "medium",
+        "penalty": 15,
+        "description": "別人可以把你的網站整個塞進他們網頁的隱形 iframe，誘騙使用者點擊（Clickjacking），例如騙他按下「刪除帳號」或「確認付款」。",
+        "evidence": "沒有 X-Frame-Options 標頭，CSP 也沒有 frame-ancestors 指令",
+        "fix_prompt": "你是我的資深資安工程師。我的網站經被動檢測推測技術棧為：Netlify。請先讀取專案結構確認實際使用的框架與部署方式，再進行以下修改，修改後告訴我如何驗證。\n\n任務：防止點擊劫持（Clickjacking）。位置：public/_headers 檔案，或 netlify.toml 的 [[headers]] 區塊。加入 `X-Frame-Options: DENY`（若網站需要被自家其他網域用 iframe 嵌入，改用 `SAMEORIGIN`），並在 Content-Security-Policy 加上 `frame-ancestors 'none'`（或 'self'），兩者一起設才能同時涵蓋新舊瀏覽器。\n\n要求：1) 直接給我完整可貼上的程式碼或設定檔內容；2) 逐行說明用途；3) 指出可能的副作用與回滾方式；4) 不要改動與此任務無關的檔案。"
+      },
+      {
+        "id": "x_content_type_options",
+        "title": "缺少 X-Content-Type-Options（MIME 嗅探防護）",
+        "category": "HTTP 安全標頭",
+        "severity": "low",
+        "penalty": 10,
+        "description": "瀏覽器可能會「猜」檔案類型，把使用者上傳的圖片當成 JavaScript 執行（MIME 嗅探）。加上 nosniff 就能關掉這個猜測。",
+        "evidence": "回應中沒有 X-Content-Type-Options: nosniff",
+        "fix_prompt": "你是我的資深資安工程師。我的網站經被動檢測推測技術棧為：Netlify。請先讀取專案結構確認實際使用的框架與部署方式，再進行以下修改，修改後告訴我如何驗證。\n\n任務：加入 `X-Content-Type-Options: nosniff`。位置：public/_headers 檔案，或 netlify.toml 的 [[headers]] 區塊。這個標頭幾乎沒有副作用，直接加即可；順便確認所有靜態資源都回傳正確的 Content-Type。\n\n要求：1) 直接給我完整可貼上的程式碼或設定檔內容；2) 逐行說明用途；3) 指出可能的副作用與回滾方式；4) 不要改動與此任務無關的檔案。"
+      },
+      {
+        "id": "hsts_weak",
+        "title": "建議：HSTS 設定偏弱",
+        "category": "傳輸安全",
+        "severity": "info",
+        "penalty": 0,
+        "description": "HSTS 有設但效力打折：max-age 太短代表保護期很快就過，缺少 includeSubDomains 代表子網域仍可能被降級成 http。",
+        "evidence": "缺少 includeSubDomains",
+        "fix_prompt": "你是我的資深資安工程師。我的網站經被動檢測推測技術棧為：Netlify。請先讀取專案結構確認實際使用的框架與部署方式，再進行以下修改，修改後告訴我如何驗證。\n\n任務：強化 HSTS。目前的問題：缺少 includeSubDomains。位置：public/_headers 檔案，或 netlify.toml 的 [[headers]] 區塊。改成 `Strict-Transport-Security: max-age=31536000; includeSubDomains`。加 includeSubDomains 前請先確認所有子網域都有有效的 HTTPS 憑證，否則子網域會打不開。\n\n要求：1) 直接給我完整可貼上的程式碼或設定檔內容；2) 逐行說明用途；3) 指出可能的副作用與回滾方式；4) 不要改動與此任務無關的檔案。"
+      },
+      {
+        "id": "referrer_policy",
+        "title": "建議：設定 Referrer-Policy",
+        "category": "建議加強",
+        "severity": "info",
+        "penalty": 0,
+        "description": "未設定 Referrer-Policy。使用者從你的網站點外部連結時，完整網址（可能含 token 或個資參數）會被送給對方網站。不扣分，但建議補上。",
+        "evidence": "回應中沒有 Referrer-Policy 標頭",
+        "fix_prompt": "你是我的資深資安工程師。我的網站經被動檢測推測技術棧為：Netlify。請先讀取專案結構確認實際使用的框架與部署方式，再進行以下修改，修改後告訴我如何驗證。\n\n任務：加入 `Referrer-Policy: strict-origin-when-cross-origin`。位置：public/_headers 檔案，或 netlify.toml 的 [[headers]] 區塊。\n\n要求：1) 直接給我完整可貼上的程式碼或設定檔內容；2) 逐行說明用途；3) 指出可能的副作用與回滾方式；4) 不要改動與此任務無關的檔案。"
+      },
+      {
+        "id": "permissions_policy",
+        "title": "建議：設定 Permissions-Policy",
+        "category": "建議加強",
+        "severity": "info",
+        "penalty": 0,
+        "description": "未設定 Permissions-Policy。可明確關閉網站用不到的瀏覽器功能（相機、麥克風、定位），降低第三方腳本濫用的風險。不扣分，但建議補上。",
+        "evidence": "回應中沒有 Permissions-Policy 標頭",
+        "fix_prompt": "你是我的資深資安工程師。我的網站經被動檢測推測技術棧為：Netlify。請先讀取專案結構確認實際使用的框架與部署方式，再進行以下修改，修改後告訴我如何驗證。\n\n任務：加入 `Permissions-Policy: camera=(), microphone=(), geolocation=()`（依實際需要調整）。位置：public/_headers 檔案，或 netlify.toml 的 [[headers]] 區塊。\n\n要求：1) 直接給我完整可貼上的程式碼或設定檔內容；2) 逐行說明用途；3) 指出可能的副作用與回滾方式；4) 不要改動與此任務無關的檔案。"
+      },
+      {
+        "id": "cross_origin_isolation",
+        "title": "建議：設定 Cross-Origin-Opener-Policy",
+        "category": "建議加強",
+        "severity": "info",
+        "penalty": 0,
+        "description": "未設定 COOP。設成 same-origin 可以切斷其他網站透過 window.opener 操控你頁面的管道，降低跨站洩漏（XS-Leaks）類攻擊的風險。若網站有 OAuth 彈窗登入，改用 same-origin-allow-popups。",
+        "evidence": "回應中沒有 Cross-Origin-Opener-Policy 標頭",
+        "fix_prompt": "你是我的資深資安工程師。我的網站經被動檢測推測技術棧為：Netlify。請先讀取專案結構確認實際使用的框架與部署方式，再進行以下修改，修改後告訴我如何驗證。\n\n任務：加入 `Cross-Origin-Opener-Policy: same-origin`。位置：public/_headers 檔案，或 netlify.toml 的 [[headers]] 區塊。若網站使用 OAuth 彈窗登入（Google / GitHub 登入視窗需要 window.opener），改用 `same-origin-allow-popups`。加完後測試登入流程與所有會開新視窗的功能。\n\n要求：1) 直接給我完整可貼上的程式碼或設定檔內容；2) 逐行說明用途；3) 指出可能的副作用與回滾方式；4) 不要改動與此任務無關的檔案。"
+      }
+    ],
+    "passed": [
+      {
+        "id": "https",
+        "title": "強制 HTTPS",
+        "detail": "http://landing.netlify.app/ 回應 308 並導向 https://landing.netlify.app/"
+      },
+      {
+        "id": "hsts",
+        "title": "HSTS 已設定",
+        "detail": "Strict-Transport-Security: max-age=31536000"
+      },
+      {
+        "id": "mixed_content",
+        "title": "沒有混合內容",
+        "detail": "HTTPS 頁面引用的腳本、樣式與 iframe 都走 https://"
+      },
+      {
+        "id": "server_version",
+        "title": "未洩漏伺服器版本",
+        "detail": "Server / X-Powered-By / generator 都沒有版本號"
+      },
+      {
+        "id": "cookie",
+        "title": "Cookie 安全屬性",
+        "detail": "此頁面沒有設置任何 Cookie，無此風險（登入頁通常才有，可在進階選項加掃 /login）"
+      },
+      {
+        "id": "secret_leak",
+        "title": "前端程式碼未發現 API 金鑰",
+        "detail": "已掃描首頁 HTML 與 1 個站內 JS（13 種金鑰特徵，含 Supabase service_role JWT）"
+      },
+      {
+        "id": "sri_missing",
+        "title": "第三方腳本已有 SRI 或無外部腳本",
+        "detail": "首頁沒有缺少 integrity 屬性的固定版本外部腳本"
+      },
+      {
+        "id": "outdated_library",
+        "title": "未偵測到已停止維護的函式庫",
+        "detail": "首頁與站內 JS 沒有舊版 jQuery、AngularJS 1.x、Bootstrap 3、Vue 2 的特徵"
+      },
+      {
+        "id": "sourcemap_exposed",
+        "title": "source map 未公開",
+        "detail": "已檢查 1 個站內 JS 的 sourceMappingURL"
+      },
+      {
+        "id": "git_exposed",
+        "title": "/.git/config 未裸露",
+        "detail": "/.git/config 回應 HTTP 404"
+      }
+    ],
+    "config_snippets": [
+      {
+        "filename": "public/_headers",
+        "title": "Netlify：_headers 檔",
+        "content": "/*\n  Strict-Transport-Security: max-age=31536000; includeSubDomains\n  X-Frame-Options: DENY\n  X-Content-Type-Options: nosniff\n  Referrer-Policy: strict-origin-when-cross-origin\n  Permissions-Policy: camera=(), microphone=(), geolocation=()\n  Cross-Origin-Opener-Policy: same-origin\n  Content-Security-Policy-Report-Only: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'\n",
+        "note": "放在 public/ 目錄，建置後會被複製到輸出目錄。CSP 先以 Report-Only 上線，開瀏覽器 console 觀察幾天沒有違規後，再把標頭名稱改成 Content-Security-Policy。"
+      },
+      {
+        "filename": "headers.txt",
+        "title": "標頭清單（任何平台通用）",
+        "content": "Strict-Transport-Security: max-age=31536000; includeSubDomains\nX-Frame-Options: DENY\nX-Content-Type-Options: nosniff\nReferrer-Policy: strict-origin-when-cross-origin\nPermissions-Policy: camera=(), microphone=(), geolocation=()\nCross-Origin-Opener-Policy: same-origin\nContent-Security-Policy-Report-Only: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'\n",
+        "note": "不管用哪個平台，最終目標就是讓每個回應都帶上這幾行。部署後用 curl -I 你的網址 確認。"
+      }
+    ],
+    "headers": {
+      "strict-transport-security": "max-age=31536000",
+      "content-security-policy": null,
+      "x-frame-options": null,
+      "x-content-type-options": null,
+      "referrer-policy": null,
+      "permissions-policy": null,
+      "server": "Netlify",
+      "x-powered-by": null,
+      "set-cookie": null
+    },
+    "details": {
+      "redirect_chain": [],
+      "js_files_scanned": [
+        "https://landing.netlify.app/app.js"
+      ],
+      "extra_pages": [],
+      "engine_ms": 0,
+      "html_bytes": 118,
+      "notes": []
+    }
+  },
+  "expect": {
+    "risk_level_in": [
+      "危急"
+    ],
+    "must_mention_any": [
+      [
+        ".env"
+      ],
+      [
+        "_headers",
+        "netlify.toml",
+        "刪除",
+        "移除",
+        "排除"
+      ]
+    ],
+    "must_not_mention": [
+      "next.config"
+    ],
+    "fix_prompts_cover": [
+      "env_exposed"
+    ]
+  }
+}

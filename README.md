@@ -131,7 +131,7 @@ python -m pytest -q
 | `GET` | `/api/sample` | 範例報告（虛構網站 demo-shop.vercel.app，含預先產生的 AI 顧問結果），首頁「看範例報告」用 |
 | `GET` | `/badge/{host}.svg` | 徽章：顯示該網域 7 天內最近一次授權掃描的評等，沒掃過就是灰色 not scanned |
 
-`POST /api/scan` 的完整參數：`{"url": "...", "authorized": true, "paths": ["/login", "/dashboard"], "turnstile_token": "..."}`。`paths` 最多 5 個站內路徑，會一併抓取並合併 Cookie、金鑰、混合內容檢查（登入頁通常才會設 Cookie）。`turnstile_token` 只在部署端啟用 Turnstile 時需要；帶 `X-Api-Key` 標頭（值在 `API_KEYS` 環境變數裡）的自動化呼叫可跳過。
+`POST /api/scan` 的完整參數：`{"url": "...", "authorized": true, "paths": ["/login", "/dashboard"], "auto_paths": true, "turnstile_token": "..."}`。`paths` 最多 5 個站內路徑，會一併抓取並合併 Cookie、金鑰、混合內容檢查（登入頁通常才會設 Cookie）。`auto_paths` 會讀 `/sitemap.xml`（沒有就看 `robots.txt` 的 `Sitemap:`，支援 sitemap index 前 2 個子檔），優先挑登入／帳號／後台類頁面補到 5 個，結果寫在 `details.auto_paths` 與 `details.notes`。`turnstile_token` 只在部署端啟用 Turnstile 時需要；帶 `X-Api-Key` 標頭（值在 `API_KEYS` 環境變數裡）的自動化呼叫可跳過。
 
 ### 在 CI 裡自動體檢
 
@@ -154,7 +154,7 @@ python -m pytest -q
 ## 讓建議越調越準（不重訓模型）
 
 1. 在 `knowledge/` 新增或修改 Markdown，第一行寫 `tags: nextjs, csp, ...`。標籤會和偵測到的技術棧、缺失項目 id 做比對，命中的文件會注入 System Prompt。
-2. 在 `knowledge/fewshot.json` 放入你滿意的輸入／輸出範例，模型會模仿其風格。`knowledge/vibe-coding-launch.md`（tags: general）是每次都會帶上的「上線前五問」框架與 What'Sub 案例，研究筆記在 `docs/research/`。
+2. 在 `knowledge/fewshot.json` 放入你滿意的輸入／輸出範例，模型會模仿其風格。改完 System Prompt 或知識庫後，用 `python evals/run_eval.py` 跑顧問評測集（`evals/cases/*.json`，6 個合成案例：Next.js 缺標頭、Lovable 金鑰外洩、Netlify .env 裸露、自架 nginx 純 HTTP、全過的乾淨站、綠界 HashKey 在前端），規則會檢查風險等級、有沒有提到正確平台的設定檔、有沒有給錯平台的檔案、每個扣分項都有修復 Prompt；一次約 0.25 美元。`--dry` 只驗結構不花錢，CI 就是這樣跑。規則引擎改了要重跑 `python evals/build_cases.py` 更新案例。`knowledge/vibe-coding-launch.md`（tags: general）是每次都會帶上的「上線前五問」框架與 What'Sub 案例，研究筆記在 `docs/research/`。
 3. 呼叫 `POST /api/knowledge/reload`。
 4. 要升級成向量 RAG，只需改寫 `KnowledgeBase.retrieve()`。
 

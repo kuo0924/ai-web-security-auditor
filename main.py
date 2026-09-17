@@ -100,13 +100,14 @@ app = FastAPI(
 app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
 MAX_BODY_BYTES = 1_000_000  # 報告 JSON 通常 30–60 KB，1 MB 綽綽有餘
 REPORT_CACHE_TTL = 45  # 同一目標短時間內重複掃描直接回快取，減少對目標網站的請求
-report_cache: dict[tuple[str, tuple[str, ...]], tuple[float, dict[str, Any]]] = {}
+report_cache: dict[tuple[str, tuple[str, ...], bool], tuple[float, dict[str, Any]]] = {}  # (target, paths, auto_paths)
 
 
 class ScanRequest(BaseModel):
     url: str = Field(..., max_length=2048)
     authorized: bool = False
     paths: list[str] = Field(default_factory=list, max_length=MAX_EXTRA_PATHS)
+    auto_paths: bool = False  # 從 sitemap.xml 自動補到最多 MAX_EXTRA_PATHS 個站內路徑
     turnstile_token: Optional[str] = Field(None, max_length=4096)
 
 
@@ -257,7 +258,8 @@ async def robots_txt():
 @app.get("/sitemap.xml")
 async def sitemap_xml():
     body = ('<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'
-            f'<url><loc>{PUBLIC_ORIGIN}/</loc><changefreq>weekly</changefreq></url></urlset>\n')
+            f'<url><loc>{PUBLIC_ORIGIN}/</loc><changefreq>weekly</changefreq></url>'
+            f'<url><loc>{PUBLIC_ORIGIN}/stats</loc><changefreq>daily</changefreq></url></urlset>\n')
     return Response(body, media_type="application/xml; charset=utf-8", headers={"Cache-Control": "public, max-age=86400"})
 
 
@@ -381,7 +383,7 @@ async def api_scan(body: ScanRequest, request: Request):
         )
     await require_human(request, body.turnstile_token, ip)
 
-    cache_key = (target, tuple(normalize_extra_paths(body.paths)))
+    cache_key = (target, tuple(normalize_extra_paths(body.paths)), body.auto_paths)
     cached = report_cache.get(cache_key)
     if cached and time.time() - cached[0] < REPORT_CACHE_TTL:
         age = int(time.time() - cached[0])
@@ -394,7 +396,7 @@ async def api_scan(body: ScanRequest, request: Request):
         if time.time() - ts >= REPORT_CACHE_TTL:
             report_cache.pop(key, None)
 
-    log.info("scan %s -> %s%s", ip, urlparse(target).hostname, f" (+{len(body.paths)} paths)" if body.paths else "")
+    log.info("scan %s -> %s%s%s", ip, urlparse(target).hostname, f" (+{len(body.paths)} paths)" if body.paths else "", " (auto)" if body.auto_paths else "")
     # 使用者沒打協定時先試 https://，連不上再退回 http://（結果會如實反映該站沒有 HTTPS）
     candidates = [target]
     if "://" not in body.url.strip():
@@ -403,7 +405,7 @@ async def api_scan(body: ScanRequest, request: Request):
     try:
         for candidate in candidates:
             try:
-                report = await run_scan(candidate, body.paths)
+                report = await run_scan(candidate, body.paths, auto_paths=body.auto_paths)
                 stats.record_scan(ip, report)
                 host = (report.get("target") or {}).get("hostname")
                 if host:

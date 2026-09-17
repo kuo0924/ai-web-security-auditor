@@ -13,7 +13,7 @@ const els = {
   download: $('#download'), rescan: $('#rescan'), toast: $('#toast'), llmBadge: $('#llm-badge'),
   sample: $('#sample'), share: $('#share'), print: $('#print'), banner: $('#banner'), compare: $('#compare'),
   history: $('#history'), historyList: $('#history-list'), snippets: $('#snippets'), snippetsSection: $('#snippets-section'),
-  paths: $('#paths'), badgeBtn: $('#badge-btn'), badgeBox: $('#badge-box'), badgeImg: $('#badge-img'), badgeMd: $('#badge-md'), badgeHtml: $('#badge-html'),
+  paths: $('#paths'), autoPaths: $('#auto-paths'), badgeBtn: $('#badge-btn'), badgeBox: $('#badge-box'), badgeImg: $('#badge-img'), badgeMd: $('#badge-md'), badgeHtml: $('#badge-html'),
 };
 // mode: live（剛掃描）| sample（範例）| shared（別人分享的連結）
 const state = { scan: null, consult: null, history: [], busy: false, mode: 'live' };
@@ -161,7 +161,7 @@ els.form.addEventListener('submit', async (ev) => {
   clearError(); show(els.results, false); setLoading(true); resetReportUI();
   try {
     const paths = els.paths.value.split(',').map((p) => p.trim()).filter((p) => p.startsWith('/') && p !== '/').slice(0, 5);
-    const data = await postJSON('/api/scan', { url, authorized: true, paths });
+    const data = await postJSON('/api/scan', { url, authorized: true, paths, auto_paths: !!(els.autoPaths && els.autoPaths.checked) });
     state.scan = data; state.consult = null; state.mode = 'live';
     const prev = findHistory(data.target.hostname);
     renderResult(data);

@@ -118,6 +118,10 @@
           <summary class="font-mono text-[11px] text-slate-500 hover:text-slate-300"><span class="chev">›</span> 進階：多掃幾個站內路徑（例如登入頁才會設 Cookie）</summary>
           <input id="paths" type="text" autocomplete="off" spellcheck="false" placeholder="/login, /dashboard, /api/health（逗號分隔，最多 5 個，只能是同一個網站的路徑）"
             class="mt-2 w-full bg-transparent border hair rounded px-4 py-2.5 font-mono text-[12px] text-slate-100 focus:outline-none focus:border-indigo-400">
+          <label class="mt-3 flex items-start gap-2 text-[12px] text-slate-500 cursor-pointer select-none">
+            <input id="auto-paths" type="checkbox" class="mt-0.5 w-3.5 h-3.5 rounded-sm border-slate-600 bg-slate-950 text-indigo-500 focus:ring-0 focus:ring-offset-0">
+            <span>自動從 sitemap.xml 補到 5 個站內頁面（優先登入、帳號、後台類；多 1–3 個請求，沒有 sitemap 就略過）</span>
+          </label>
         </details>
         <label class="mt-5 flex items-start gap-3 text-sm text-slate-400 cursor-pointer select-none">
           <input id="auth" type="checkbox" class="mt-1 w-4 h-4 rounded-sm border-slate-600 bg-slate-950 text-indigo-500 focus:ring-0 focus:ring-offset-0">
@@ -256,7 +260,7 @@
       </details>
 
       <p class="font-mono text-[11px] leading-relaxed text-slate-600 max-w-3xl">
-        本工具僅執行被動、非侵入的公開資源讀取：首頁、站內 JS 與其 source map、/.env 系列、/.git/config、security.txt 各一次 GET，另向公開 DNS 查詢 SPF / DMARC 紀錄，不構成滲透測試。
+        本工具僅執行被動、非侵入的公開資源讀取：首頁、站內 JS 與其 source map、/.env 系列、/.git/config、security.txt 各一次 GET（勾選自動找頁時多讀 sitemap.xml / robots.txt），另向公開 DNS 查詢 SPF / DMARC 紀錄，不構成滲透測試。
         評分反映基礎防線的配置狀況，不代表網站沒有其他漏洞。
       </p>
     </div>
@@ -285,7 +289,7 @@
     <div class="max-w-5xl mx-auto px-5 py-10 grid md:grid-cols-3 gap-8 text-sm text-slate-400 leading-relaxed">
       <div>
         <div class="kicker mb-3">關於</div>
-        <p>給用 Cursor、v0、Bolt、Lovable 搭站、但沒有資安背景的開發者與學生的免費工具。只讀取網站公開回傳的 HTTP 標頭與靜態檔案，每次體檢最多約 12 個一般瀏覽器也會送的 GET 請求，沒有注入、爆破、目錄列舉或 port 掃描。</p>
+        <p>給用 Cursor、v0、Bolt、Lovable 搭站、但沒有資安背景的開發者與學生的免費工具。只讀取網站公開回傳的 HTTP 標頭與靜態檔案，每次體檢最多約 15 個一般瀏覽器也會送的 GET 請求，沒有注入、爆破、目錄列舉或 port 掃描。</p>
         <p class="mt-2">世新大學學生的個人專案，程式碼、檢查規則與計分方式都公開在 <a href="https://github.com/kuo0924/ai-web-security-auditor" class="underline decoration-slate-700 underline-offset-4 hover:text-slate-200">GitHub</a>。</p>
       </div>
       <div>

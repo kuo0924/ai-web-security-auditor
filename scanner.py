@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import html as html_lib
 import ipaddress
 import json
 import re
@@ -1292,6 +1293,98 @@ def evaluate(
     }
 
 
+MAX_SITEMAP_BYTES = 300_000
+# 自動找頁的優先順序：會設 Cookie、有登入態的頁面排前面（外部掃描最容易在這些頁看到差異）
+SITEMAP_PRIORITY = ("/login", "/signin", "/sign-in", "/sign_in", "/auth", "/account", "/dashboard", "/admin", "/app",
+                    "/profile", "/settings", "/checkout", "/cart", "/member", "/user")
+_SITEMAP_SKIP_EXT = (".xml", ".gz", ".pdf", ".jpg", ".jpeg", ".png", ".gif", ".svg", ".webp", ".css", ".js", ".json", ".txt",
+                     ".ico", ".mp4", ".mp3", ".zip", ".woff", ".woff2")
+
+
+def _same_site(host: str, origin_host: str) -> bool:
+    """sitemap 常用 www 主機名，視為同一站；其餘一律不同站。"""
+    return host.lower().removeprefix("www.") == origin_host.lower().removeprefix("www.")
+
+
+def sitemap_locs(xml: str) -> tuple[list[str], bool]:
+    """回 (所有 <loc>, 是否為 sitemap index)。只用正則，不用 XML parser，避免實體展開類攻擊。"""
+    is_index = bool(re.search(r"<sitemapindex\b", xml, re.I))
+    locs = [html_lib.unescape(m.group(1).strip()) for m in re.finditer(r"<loc>\s*(?:<!\[CDATA\[)?\s*([^<\]\s]+)\s*(?:\]\]>)?\s*</loc>", xml, re.I)]
+    return locs, is_index
+
+
+def pick_sitemap_paths(locs: list[str], origin: str, exclude: list[str], limit: int) -> list[str]:
+    """從 sitemap 的網址挑同站頁面路徑：優先登入／帳號類，其次淺層頁；略過首頁、靜態檔與使用者已填的路徑。"""
+    origin_host = urlparse(origin).hostname or ""
+    seen = set(exclude)
+    candidates: list[tuple[int, int, int, str]] = []
+    for order, loc in enumerate(locs):
+        p = urlparse(loc)
+        if p.scheme not in ("http", "https") or not _same_site(p.hostname or "", origin_host):
+            continue
+        path = p.path or "/"
+        if path == "/" or path.lower().endswith(_SITEMAP_SKIP_EXT) or path in seen or len(path) > 200:
+            continue
+        seen.add(path)
+        low = path.lower()
+        rank = next((i for i, kw in enumerate(SITEMAP_PRIORITY) if low == kw or low.startswith(kw + "/") or low.startswith(kw + ".")), len(SITEMAP_PRIORITY))
+        candidates.append((rank, path.count("/"), order, path))
+    candidates.sort()
+    return normalize_extra_paths([c[3] for c in candidates])[:max(0, limit)]
+
+
+async def discover_paths(client: Any, origin: str, exclude: list[str], limit: int) -> tuple[list[str], str, int]:
+    """從 /sitemap.xml（沒有就看 robots.txt 宣告的同站 Sitemap）挑最多 limit 個路徑。
+    回 (paths, 給報告的說明, 多送的請求數)。任何失敗都只回空清單，不影響主掃描。"""
+    if limit <= 0:
+        return [], "自動找頁：手動路徑已達上限，未再加頁", 0
+    requests = 0
+    origin_host = urlparse(origin).hostname or ""
+
+    async def get(url: str) -> FetchResult | None:
+        nonlocal requests
+        try:
+            r = await safe_fetch(client, url, max_bytes=MAX_SITEMAP_BYTES)
+            requests += r.requests_made
+            return r if r.status == 200 else None
+        except Exception:  # 連不上、SSRF 判定、逾時：自動找頁是加分項，靜默放棄
+            requests += 1
+            return None
+
+    source = "/sitemap.xml"
+    r = await get(origin + "/sitemap.xml")
+    xml = r.text() if r and "<" in r.text()[:2000] else ""
+    if not xml:
+        robots = await get(origin + "/robots.txt")
+        declared: list[str] = []
+        for line in (robots.text().splitlines() if robots else []):
+            if line.lower().startswith("sitemap:"):
+                u = line.split(":", 1)[1].strip()
+                pu = urlparse(u)
+                if pu.scheme in ("http", "https") and _same_site(pu.hostname or "", origin_host) and not u.lower().endswith(".gz"):
+                    declared.append(u)
+        for u in declared[:2]:
+            r = await get(u)
+            if r and "<" in r.text()[:2000]:
+                xml, source = r.text(), (urlparse(u).path or u)
+                break
+        if not xml:
+            return [], "自動找頁：沒有 /sitemap.xml，robots.txt 也沒宣告可用的同站 Sitemap；可改用手動填路徑", requests
+    locs, is_index = sitemap_locs(xml)
+    if is_index:
+        children = [u for u in locs if _same_site(urlparse(u).hostname or "", origin_host) and not u.lower().endswith(".gz")][:2]
+        locs = []
+        for u in children:
+            r = await get(u)
+            if r:
+                locs.extend(sitemap_locs(r.text())[0])
+        source += f"（sitemap index，讀了 {len(children)} 個子 sitemap）"
+    paths = pick_sitemap_paths(locs, origin, exclude, limit)
+    if not paths:
+        return [], f"自動找頁：{source} 的 {len(locs)} 個網址裡沒有可用的同站頁面", requests
+    return paths, f"自動找頁：從 {source} 的 {len(locs)} 個網址挑了 {len(paths)} 個：{'、'.join(paths)}", requests
+
+
 def normalize_extra_paths(paths: list[str]) -> list[str]:
     """使用者自填的額外路徑：只接受 / 開頭的站內路徑，最多 MAX_EXTRA_PATHS 個。"""
     out: list[str] = []
@@ -1304,9 +1397,11 @@ def normalize_extra_paths(paths: list[str]) -> list[str]:
     return out[:MAX_EXTRA_PATHS]
 
 
-async def run_scan(input_url: str, extra_paths: list[str] | None = None) -> dict[str, Any]:
+async def run_scan(input_url: str, extra_paths: list[str] | None = None, auto_paths: bool = False) -> dict[str, Any]:
     t_start = time.perf_counter()
     extra_paths = normalize_extra_paths(extra_paths or [])
+    auto_found: list[str] = []
+    auto_note, auto_requests = "", 0
     async with httpx.AsyncClient(
         timeout=REQUEST_TIMEOUT,
         follow_redirects=False,
@@ -1317,6 +1412,9 @@ async def run_scan(input_url: str, extra_paths: list[str] | None = None) -> dict
         origin = f"{final.scheme}://{final.netloc}"
         html = main.text()
         js_urls = extract_same_origin_scripts(html, main.url)
+        if auto_paths:
+            auto_found, auto_note, auto_requests = await discover_paths(client, origin, extra_paths, MAX_EXTRA_PATHS - len(extra_paths))
+            extra_paths = extra_paths + auto_found
 
         tasks: list[Any] = []
         probe_needed = urlparse(input_url).scheme == "https" and final.scheme == "https"
@@ -1375,6 +1473,10 @@ async def run_scan(input_url: str, extra_paths: list[str] | None = None) -> dict
     requests_made = main.requests_made + sum(
         r.requests_made if isinstance(r, FetchResult) else 1 for r in fetches
     )
+    if auto_paths:
+        report["details"]["notes"].append(auto_note)
+        report["details"]["auto_paths"] = auto_found
+        requests_made += auto_requests
     report["details"]["requests_made"] = requests_made
     report["details"]["total_ms"] = round((time.perf_counter() - t_start) * 1000)
     report["scanned_at"] = datetime.now(UTC).isoformat()

@@ -17,16 +17,16 @@ def test_body_size_limit(fresh_state):
 def test_report_cache_serves_recent_result(fresh_state, report):
     c = TestClient(m.app)
     m.report_cache.clear()
-    m.report_cache[("https://example.com/", ())] = (time.time(), report)
+    m.report_cache[("https://example.com/", (), False)] = (time.time(), report)
     r = c.post("/api/scan", json={"url": "example.com", "authorized": True})
     assert r.status_code == 200
     body = r.json()
     assert body["details"]["cached_seconds"] >= 0 and "快取" in body["details"]["notes"][0]
     assert "cached_seconds" not in report["details"]  # 回的是副本，原始快取不被改動
     assert c.get("/api/stats").json()["today"]["scans"] == 1
-    m.report_cache[("https://example.com/", ())] = (time.time() - m.REPORT_CACHE_TTL - 1, report)
+    m.report_cache[("https://example.com/", (), False)] = (time.time() - m.REPORT_CACHE_TTL - 1, report)
     r2 = c.post("/api/scan", json={"url": "http://10.0.0.9/", "authorized": True})  # 過期項目會被清掉；此請求本身被 SSRF 擋
-    assert r2.status_code == 400 and ("https://example.com/", ()) not in m.report_cache
+    assert r2.status_code == 400 and ("https://example.com/", (), False) not in m.report_cache
     m.report_cache.clear()
 
 

@@ -1,0 +1,199 @@
+{
+  "name": "nextjs-vercel-missing-headers",
+  "description": "Next.js on Vercel：HTTPS 與 HSTS 齊，缺 CSP、X-Frame-Options、nosniff、Referrer-Policy。顧問應指向 next.config.js 的 headers()。",
+  "scan": {
+    "target": {
+      "input_url": "https://my-saas.vercel.app/",
+      "final_url": "https://my-saas.vercel.app/",
+      "hostname": "my-saas.vercel.app",
+      "scheme": "https",
+      "status_code": 200
+    },
+    "score": 55,
+    "grade": "C",
+    "grade_label": "待加強",
+    "tech": {
+      "stack": [
+        "Next.js",
+        "Vercel"
+      ],
+      "platform": "nextjs"
+    },
+    "issues": [
+      {
+        "id": "csp",
+        "title": "缺少 Content-Security-Policy (CSP)",
+        "category": "HTTP 安全標頭",
+        "severity": "high",
+        "penalty": 20,
+        "description": "沒有內容安全政策，代表只要任何一處有 XSS 漏洞（例如留言板沒過濾），攻擊者就能在你的網站上執行任意 JavaScript、偷 Cookie、改頁面。CSP 是最後一道防線。",
+        "evidence": "回應中沒有 Content-Security-Policy 標頭，HTML 也沒有對應的 <meta>",
+        "fix_prompt": "你是我的資深資安工程師。我的網站經被動檢測推測技術棧為：Next.js、Vercel。請先讀取專案結構確認實際使用的框架與部署方式，再進行以下修改，修改後告訴我如何驗證。\n\n任務：建立 Content-Security-Policy。位置：Next.js 專案的 next.config.js / next.config.mjs 裡的 `async headers()`（需要 nonce 的 CSP 則放在 middleware.ts）。步驟：1) 先盤點網站用到的外部資源（第三方腳本、字型、圖片、API、iframe）；2) 先以 `Content-Security-Policy-Report-Only` 上線，觀察瀏覽器 console 有沒有違規；3) 確認無誤後改成正式的 `Content-Security-Policy`。起手式：`default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'`。請依盤點結果把實際用到的網域加進對應指令，script-src 避免 'unsafe-inline'（Next.js 可在 middleware.ts 產生 nonce 並透過 x-nonce 標頭傳給 App Router，請參考官方 CSP 指南）。\n\n要求：1) 直接給我完整可貼上的程式碼或設定檔內容；2) 逐行說明用途；3) 指出可能的副作用與回滾方式；4) 不要改動與此任務無關的檔案。"
+      },
+      {
+        "id": "x_frame_options",
+        "title": "缺少 X-Frame-Options（點擊劫持防護）",
+        "category": "HTTP 安全標頭",
+        "severity": "medium",
+        "penalty": 15,
+        "description": "別人可以把你的網站整個塞進他們網頁的隱形 iframe，誘騙使用者點擊（Clickjacking），例如騙他按下「刪除帳號」或「確認付款」。",
+        "evidence": "沒有 X-Frame-Options 標頭，CSP 也沒有 frame-ancestors 指令",
+        "fix_prompt": "你是我的資深資安工程師。我的網站經被動檢測推測技術棧為：Next.js、Vercel。請先讀取專案結構確認實際使用的框架與部署方式，再進行以下修改，修改後告訴我如何驗證。\n\n任務：防止點擊劫持（Clickjacking）。位置：Next.js 專案的 next.config.js / next.config.mjs 裡的 `async headers()`（需要 nonce 的 CSP 則放在 middleware.ts）。加入 `X-Frame-Options: DENY`（若網站需要被自家其他網域用 iframe 嵌入，改用 `SAMEORIGIN`），並在 Content-Security-Policy 加上 `frame-ancestors 'none'`（或 'self'），兩者一起設才能同時涵蓋新舊瀏覽器。\n\n要求：1) 直接給我完整可貼上的程式碼或設定檔內容；2) 逐行說明用途；3) 指出可能的副作用與回滾方式；4) 不要改動與此任務無關的檔案。"
+      },
+      {
+        "id": "x_content_type_options",
+        "title": "缺少 X-Content-Type-Options（MIME 嗅探防護）",
+        "category": "HTTP 安全標頭",
+        "severity": "low",
+        "penalty": 10,
+        "description": "瀏覽器可能會「猜」檔案類型，把使用者上傳的圖片當成 JavaScript 執行（MIME 嗅探）。加上 nosniff 就能關掉這個猜測。",
+        "evidence": "回應中沒有 X-Content-Type-Options: nosniff",
+        "fix_prompt": "你是我的資深資安工程師。我的網站經被動檢測推測技術棧為：Next.js、Vercel。請先讀取專案結構確認實際使用的框架與部署方式，再進行以下修改，修改後告訴我如何驗證。\n\n任務：加入 `X-Content-Type-Options: nosniff`。位置：Next.js 專案的 next.config.js / next.config.mjs 裡的 `async headers()`（需要 nonce 的 CSP 則放在 middleware.ts）。這個標頭幾乎沒有副作用，直接加即可；順便確認所有靜態資源都回傳正確的 Content-Type。\n\n要求：1) 直接給我完整可貼上的程式碼或設定檔內容；2) 逐行說明用途；3) 指出可能的副作用與回滾方式；4) 不要改動與此任務無關的檔案。"
+      },
+      {
+        "id": "referrer_policy",
+        "title": "建議：設定 Referrer-Policy",
+        "category": "建議加強",
+        "severity": "info",
+        "penalty": 0,
+        "description": "未設定 Referrer-Policy。使用者從你的網站點外部連結時，完整網址（可能含 token 或個資參數）會被送給對方網站。不扣分，但建議補上。",
+        "evidence": "回應中沒有 Referrer-Policy 標頭",
+        "fix_prompt": "你是我的資深資安工程師。我的網站經被動檢測推測技術棧為：Next.js、Vercel。請先讀取專案結構確認實際使用的框架與部署方式，再進行以下修改，修改後告訴我如何驗證。\n\n任務：加入 `Referrer-Policy: strict-origin-when-cross-origin`。位置：Next.js 專案的 next.config.js / next.config.mjs 裡的 `async headers()`（需要 nonce 的 CSP 則放在 middleware.ts）。\n\n要求：1) 直接給我完整可貼上的程式碼或設定檔內容；2) 逐行說明用途；3) 指出可能的副作用與回滾方式；4) 不要改動與此任務無關的檔案。"
+      },
+      {
+        "id": "permissions_policy",
+        "title": "建議：設定 Permissions-Policy",
+        "category": "建議加強",
+        "severity": "info",
+        "penalty": 0,
+        "description": "未設定 Permissions-Policy。可明確關閉網站用不到的瀏覽器功能（相機、麥克風、定位），降低第三方腳本濫用的風險。不扣分，但建議補上。",
+        "evidence": "回應中沒有 Permissions-Policy 標頭",
+        "fix_prompt": "你是我的資深資安工程師。我的網站經被動檢測推測技術棧為：Next.js、Vercel。請先讀取專案結構確認實際使用的框架與部署方式，再進行以下修改，修改後告訴我如何驗證。\n\n任務：加入 `Permissions-Policy: camera=(), microphone=(), geolocation=()`（依實際需要調整）。位置：Next.js 專案的 next.config.js / next.config.mjs 裡的 `async headers()`（需要 nonce 的 CSP 則放在 middleware.ts）。\n\n要求：1) 直接給我完整可貼上的程式碼或設定檔內容；2) 逐行說明用途；3) 指出可能的副作用與回滾方式；4) 不要改動與此任務無關的檔案。"
+      },
+      {
+        "id": "cross_origin_isolation",
+        "title": "建議：設定 Cross-Origin-Opener-Policy",
+        "category": "建議加強",
+        "severity": "info",
+        "penalty": 0,
+        "description": "未設定 COOP。設成 same-origin 可以切斷其他網站透過 window.opener 操控你頁面的管道，降低跨站洩漏（XS-Leaks）類攻擊的風險。若網站有 OAuth 彈窗登入，改用 same-origin-allow-popups。",
+        "evidence": "回應中沒有 Cross-Origin-Opener-Policy 標頭",
+        "fix_prompt": "你是我的資深資安工程師。我的網站經被動檢測推測技術棧為：Next.js、Vercel。請先讀取專案結構確認實際使用的框架與部署方式，再進行以下修改，修改後告訴我如何驗證。\n\n任務：加入 `Cross-Origin-Opener-Policy: same-origin`。位置：Next.js 專案的 next.config.js / next.config.mjs 裡的 `async headers()`（需要 nonce 的 CSP 則放在 middleware.ts）。若網站使用 OAuth 彈窗登入（Google / GitHub 登入視窗需要 window.opener），改用 `same-origin-allow-popups`。加完後測試登入流程與所有會開新視窗的功能。\n\n要求：1) 直接給我完整可貼上的程式碼或設定檔內容；2) 逐行說明用途；3) 指出可能的副作用與回滾方式；4) 不要改動與此任務無關的檔案。"
+      }
+    ],
+    "passed": [
+      {
+        "id": "https",
+        "title": "強制 HTTPS",
+        "detail": "http://my-saas.vercel.app/ 回應 308 並導向 https://my-saas.vercel.app/"
+      },
+      {
+        "id": "hsts",
+        "title": "HSTS 已設定",
+        "detail": "Strict-Transport-Security: max-age=63072000; includeSubDomains"
+      },
+      {
+        "id": "mixed_content",
+        "title": "沒有混合內容",
+        "detail": "HTTPS 頁面引用的腳本、樣式與 iframe 都走 https://"
+      },
+      {
+        "id": "server_version",
+        "title": "未洩漏伺服器版本",
+        "detail": "Server / X-Powered-By / generator 都沒有版本號"
+      },
+      {
+        "id": "cookie",
+        "title": "Cookie 安全屬性",
+        "detail": "此頁面沒有設置任何 Cookie，無此風險（登入頁通常才有，可在進階選項加掃 /login）"
+      },
+      {
+        "id": "secret_leak",
+        "title": "前端程式碼未發現 API 金鑰",
+        "detail": "已掃描首頁 HTML 與 1 個站內 JS（13 種金鑰特徵，含 Supabase service_role JWT）"
+      },
+      {
+        "id": "sri_missing",
+        "title": "第三方腳本已有 SRI 或無外部腳本",
+        "detail": "首頁沒有缺少 integrity 屬性的固定版本外部腳本"
+      },
+      {
+        "id": "outdated_library",
+        "title": "未偵測到已停止維護的函式庫",
+        "detail": "首頁與站內 JS 沒有舊版 jQuery、AngularJS 1.x、Bootstrap 3、Vue 2 的特徵"
+      },
+      {
+        "id": "sourcemap_exposed",
+        "title": "source map 未公開",
+        "detail": "已檢查 1 個站內 JS 的 sourceMappingURL"
+      },
+      {
+        "id": "env_exposed",
+        "title": "/.env 系列檔案未裸露",
+        "detail": "/.env 回應 HTTP 404"
+      },
+      {
+        "id": "git_exposed",
+        "title": "/.git/config 未裸露",
+        "detail": "/.git/config 回應 HTTP 404"
+      }
+    ],
+    "config_snippets": [
+      {
+        "filename": "next.config.js",
+        "title": "Next.js：在 headers() 一次補齊",
+        "content": "// next.config.js（由網站安全體檢儀產生）\nconst securityHeaders = [\n  { key: \"X-Frame-Options\", value: \"DENY\" },\n  { key: \"X-Content-Type-Options\", value: \"nosniff\" },\n  { key: \"Referrer-Policy\", value: \"strict-origin-when-cross-origin\" },\n  { key: \"Permissions-Policy\", value: \"camera=(), microphone=(), geolocation=()\" },\n  { key: \"Cross-Origin-Opener-Policy\", value: \"same-origin\" },\n  { key: \"Content-Security-Policy-Report-Only\", value: \"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'\" }\n];\n\n/** @type {import('next').NextConfig} */\nconst nextConfig = {\n  async headers() {\n    return [{ source: \"/(.*)\", headers: securityHeaders }];\n  },\n};\n\nmodule.exports = nextConfig;\n",
+        "note": "已有 next.config.js 的話，把 headers() 合併進去；用 next.config.mjs 就改成 export default。CSP 先以 Report-Only 上線，開瀏覽器 console 觀察幾天沒有違規後，再把標頭名稱改成 Content-Security-Policy。"
+      },
+      {
+        "filename": "headers.txt",
+        "title": "標頭清單（任何平台通用）",
+        "content": "X-Frame-Options: DENY\nX-Content-Type-Options: nosniff\nReferrer-Policy: strict-origin-when-cross-origin\nPermissions-Policy: camera=(), microphone=(), geolocation=()\nCross-Origin-Opener-Policy: same-origin\nContent-Security-Policy-Report-Only: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'\n",
+        "note": "不管用哪個平台，最終目標就是讓每個回應都帶上這幾行。部署後用 curl -I 你的網址 確認。"
+      }
+    ],
+    "headers": {
+      "strict-transport-security": "max-age=63072000; includeSubDomains",
+      "content-security-policy": null,
+      "x-frame-options": null,
+      "x-content-type-options": null,
+      "referrer-policy": null,
+      "permissions-policy": null,
+      "server": "Vercel",
+      "x-powered-by": null,
+      "set-cookie": null
+    },
+    "details": {
+      "redirect_chain": [],
+      "js_files_scanned": [
+        "https://my-saas.vercel.app/app.js"
+      ],
+      "extra_pages": [],
+      "engine_ms": 0,
+      "html_bytes": 219,
+      "notes": []
+    }
+  },
+  "expect": {
+    "risk_level_in": [
+      "中",
+      "高"
+    ],
+    "must_mention_any": [
+      [
+        "next.config",
+        "vercel.json",
+        "headers()"
+      ]
+    ],
+    "must_not_mention": [
+      "nginx",
+      ".htaccess",
+      "apache"
+    ],
+    "fix_prompts_cover": [
+      "csp",
+      "x_frame_options"
+    ]
+  }
+}

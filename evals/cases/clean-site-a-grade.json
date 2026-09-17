@@ -1,0 +1,148 @@
+{
+  "name": "clean-site-a-grade",
+  "description": "全部及格的網站。顧問不該無中生有，風險應為低，優先行動最多 4 條。",
+  "scan": {
+    "target": {
+      "input_url": "https://docs.example.com/",
+      "final_url": "https://docs.example.com/",
+      "hostname": "docs.example.com",
+      "scheme": "https",
+      "status_code": 200
+    },
+    "score": 100,
+    "grade": "A",
+    "grade_label": "優良",
+    "tech": {
+      "stack": [
+        "Cloudflare"
+      ],
+      "platform": "cloudflare"
+    },
+    "issues": [],
+    "passed": [
+      {
+        "id": "https",
+        "title": "強制 HTTPS",
+        "detail": "http://docs.example.com/ 回應 308 並導向 https://docs.example.com/"
+      },
+      {
+        "id": "hsts",
+        "title": "HSTS 已設定",
+        "detail": "Strict-Transport-Security: max-age=63072000; includeSubDomains; preload"
+      },
+      {
+        "id": "csp",
+        "title": "CSP 已設定",
+        "detail": "Content-Security-Policy: default-src 'self'; script-src 'self'; object-src 'none'; frame-ancestors 'none'; base-uri 'self'"
+      },
+      {
+        "id": "x_frame_options",
+        "title": "點擊劫持防護已設定",
+        "detail": "X-Frame-Options: DENY"
+      },
+      {
+        "id": "x_content_type_options",
+        "title": "MIME 嗅探防護已設定",
+        "detail": "X-Content-Type-Options: nosniff"
+      },
+      {
+        "id": "referrer_policy",
+        "title": "Referrer-Policy 已設定",
+        "detail": "Referrer-Policy: strict-origin-when-cross-origin"
+      },
+      {
+        "id": "permissions_policy",
+        "title": "Permissions-Policy 已設定",
+        "detail": "Permissions-Policy: camera=(), microphone=(), geolocation=()"
+      },
+      {
+        "id": "cross_origin_isolation",
+        "title": "Cross-Origin-Opener-Policy 已設定",
+        "detail": "Cross-Origin-Opener-Policy: same-origin"
+      },
+      {
+        "id": "mixed_content",
+        "title": "沒有混合內容",
+        "detail": "HTTPS 頁面引用的腳本、樣式與 iframe 都走 https://"
+      },
+      {
+        "id": "server_version",
+        "title": "未洩漏伺服器版本",
+        "detail": "Server / X-Powered-By / generator 都沒有版本號"
+      },
+      {
+        "id": "cookie",
+        "title": "Cookie 安全屬性",
+        "detail": "共 1 個 Cookie 都具備 HttpOnly 與 Secure"
+      },
+      {
+        "id": "cookie_samesite",
+        "title": "Cookie SameSite",
+        "detail": "共 1 個 Cookie 都有 SameSite"
+      },
+      {
+        "id": "secret_leak",
+        "title": "前端程式碼未發現 API 金鑰",
+        "detail": "已掃描首頁 HTML 與 1 個站內 JS（13 種金鑰特徵，含 Supabase service_role JWT）"
+      },
+      {
+        "id": "sri_missing",
+        "title": "第三方腳本已有 SRI 或無外部腳本",
+        "detail": "首頁沒有缺少 integrity 屬性的固定版本外部腳本"
+      },
+      {
+        "id": "outdated_library",
+        "title": "未偵測到已停止維護的函式庫",
+        "detail": "首頁與站內 JS 沒有舊版 jQuery、AngularJS 1.x、Bootstrap 3、Vue 2 的特徵"
+      },
+      {
+        "id": "sourcemap_exposed",
+        "title": "source map 未公開",
+        "detail": "已檢查 1 個站內 JS 的 sourceMappingURL"
+      },
+      {
+        "id": "env_exposed",
+        "title": "/.env 系列檔案未裸露",
+        "detail": "/.env 回應 HTTP 404"
+      },
+      {
+        "id": "git_exposed",
+        "title": "/.git/config 未裸露",
+        "detail": "/.git/config 回應 HTTP 404"
+      }
+    ],
+    "config_snippets": [],
+    "headers": {
+      "strict-transport-security": "max-age=63072000; includeSubDomains; preload",
+      "content-security-policy": "default-src 'self'; script-src 'self'; object-src 'none'; frame-ancestors 'none'; base-uri 'self'",
+      "x-frame-options": "DENY",
+      "x-content-type-options": "nosniff",
+      "referrer-policy": "strict-origin-when-cross-origin",
+      "permissions-policy": "camera=(), microphone=(), geolocation=()",
+      "server": "cloudflare",
+      "x-powered-by": null,
+      "set-cookie": null
+    },
+    "details": {
+      "redirect_chain": [],
+      "js_files_scanned": [
+        "https://docs.example.com/app.js"
+      ],
+      "extra_pages": [],
+      "engine_ms": 0,
+      "html_bytes": 122,
+      "notes": []
+    }
+  },
+  "expect": {
+    "risk_level_in": [
+      "低"
+    ],
+    "max_priority_actions": 4,
+    "must_not_mention": [
+      "撤銷金鑰",
+      "立即下線"
+    ],
+    "fix_prompts_cover": []
+  }
+}
