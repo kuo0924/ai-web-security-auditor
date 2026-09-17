@@ -191,8 +191,11 @@ async def _complete_openai_compatible(system: str, messages: list[dict[str, str]
 
 def extract_json(text: str) -> dict[str, Any]:
     t = text.strip()
-    t = re.sub(r"^```[a-zA-Z]*\s*", "", t)
-    t = re.sub(r"\s*```$", "", t)
+    # 用字串操作而不是有錨點的 \s* 樣式：後者在整段空白的回應上是 O(n²)
+    if t.startswith("```"):
+        t = re.sub(r"^```[a-zA-Z]{0,20}[ \t]*\r?\n?", "", t)
+    if t.endswith("```"):
+        t = t[:-3].rstrip()
     try:
         return json.loads(t)
     except json.JSONDecodeError:

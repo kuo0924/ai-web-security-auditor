@@ -404,14 +404,21 @@ def csp_weaknesses(csp: str) -> list[str]:
     return out
 
 
+# 版本號的 \d+ 若不設上界，一整串數字會讓比對退化成 O(n²)：目標網站塞 2 MB 的 <meta generator>
+# 就能讓單次掃描卡住一個多小時。位數設上界後是線性，而且版本號本來也不會有 9 位以上。
+_VERSION_NUMBER = re.compile(r"\d{1,9}\.\d{1,9}")
+# content 也設上界：我們只顯示前 60 字，沒必要為了比對吃下整份文件
+_META_GENERATOR = re.compile(r"<meta[^>]{0,400}name\s{0,20}=\s{0,20}[\"']generator[\"'][^>]{0,400}content\s{0,20}=\s{0,20}[\"']([^\"']{0,200})", re.I)
+
+
 def version_disclosures(headers: httpx.Headers, html: str) -> list[str]:
     out: list[str] = []
     for h in ("server", "x-powered-by", "x-aspnet-version", "x-aspnetmvc-version", "x-generator"):
         v = headers.get(h)
-        if v and re.search(r"\d+\.\d+", v):
+        if v and _VERSION_NUMBER.search(v[:200]):
             out.append(f"{h}: {v[:60]}")
-    m = re.search(r"<meta[^>]+name\s*=\s*[\"']generator[\"'][^>]*content\s*=\s*[\"']([^\"']+)", html, re.I)
-    if m and re.search(r"\d+\.\d+", m.group(1)):
+    m = _META_GENERATOR.search(html)
+    if m and _VERSION_NUMBER.search(m.group(1)):
         out.append("meta generator: " + m.group(1)[:60])
     return out
 
@@ -522,11 +529,16 @@ async def email_dns_check(client: httpx.AsyncClient, host: str) -> dict[str, Any
     return info
 
 
+# 行首空白只能是空格或 tab：換行已經由 re.M 的 ^ 處理，若讓 \s* 也吃換行，
+# 一份 64 KB 的空白 /.env 會讓每個行首都重新掃過整份內容（O(n²)，實測 81 秒）。
+_ENV_LINE = re.compile(r"^[ \t]*(?:export[ \t]+)?[A-Za-z_][A-Za-z0-9_]*[ \t]*=", re.M)
+
+
 def looks_like_env(text: str, content_type: str) -> bool:
     head = text[:512].lower()
     if "text/html" in content_type.lower() or "<!doctype" in head or "<html" in head:
         return False  # SPA 對任何路徑都回 200 的 fallback 頁，不是真的 .env
-    return re.search(r"^\s*(?:export\s+)?[A-Za-z_][A-Za-z0-9_]*\s*=", text, re.M) is not None
+    return _ENV_LINE.search(text) is not None
 
 
 def looks_like_git_config(text: str, content_type: str) -> bool:
