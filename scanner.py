@@ -1306,10 +1306,24 @@ def _same_site(host: str, origin_host: str) -> bool:
     return host.lower().removeprefix("www.") == origin_host.lower().removeprefix("www.")
 
 
+def _parse_url(u: str) -> Any:
+    """sitemap／robots.txt 裡的網址由對方控制；urlparse 遇到 'http://[x' 這類壞括號會丟 ValueError。
+    壞的當成空網址（scheme ''、hostname None），讓後面的同站／協定篩選自然略過。"""
+    try:
+        return urlparse(u)
+    except ValueError:
+        return urlparse("")
+
+
+# 內容由目標網站控制、最大 300 KB：樣式裡不能有兩個相鄰的 \s*（選擇性群組不出現時會變成 O(n²) 回溯，
+# 一份「<loc> + 30 萬個空白」的 sitemap 就能卡住事件迴圈十分鐘）。每個 \s* 都收進自己的選擇性群組，比對維持線性。
+_SITEMAP_LOC = re.compile(r"<loc>\s*(?:<!\[CDATA\[\s*)?([^<\]\s]+)\s*(?:\]\]>\s*)?</loc>", re.I)
+
+
 def sitemap_locs(xml: str) -> tuple[list[str], bool]:
     """回 (所有 <loc>, 是否為 sitemap index)。只用正則，不用 XML parser，避免實體展開類攻擊。"""
     is_index = bool(re.search(r"<sitemapindex\b", xml, re.I))
-    locs = [html_lib.unescape(m.group(1).strip()) for m in re.finditer(r"<loc>\s*(?:<!\[CDATA\[)?\s*([^<\]\s]+)\s*(?:\]\]>)?\s*</loc>", xml, re.I)]
+    locs = [html_lib.unescape(m.group(1).strip()) for m in _SITEMAP_LOC.finditer(xml)]
     return locs, is_index
 
 
@@ -1319,7 +1333,7 @@ def pick_sitemap_paths(locs: list[str], origin: str, exclude: list[str], limit: 
     seen = set(exclude)
     candidates: list[tuple[int, int, int, str]] = []
     for order, loc in enumerate(locs):
-        p = urlparse(loc)
+        p = _parse_url(loc)
         if p.scheme not in ("http", "https") or not _same_site(p.hostname or "", origin_host):
             continue
         path = p.path or "/"
@@ -1360,7 +1374,7 @@ async def discover_paths(client: Any, origin: str, exclude: list[str], limit: in
         for line in (robots.text().splitlines() if robots else []):
             if line.lower().startswith("sitemap:"):
                 u = line.split(":", 1)[1].strip()
-                pu = urlparse(u)
+                pu = _parse_url(u)
                 if pu.scheme in ("http", "https") and _same_site(pu.hostname or "", origin_host) and not u.lower().endswith(".gz"):
                     declared.append(u)
         for u in declared[:2]:
@@ -1372,7 +1386,7 @@ async def discover_paths(client: Any, origin: str, exclude: list[str], limit: in
             return [], "自動找頁：沒有 /sitemap.xml，robots.txt 也沒宣告可用的同站 Sitemap；可改用手動填路徑", requests
     locs, is_index = sitemap_locs(xml)
     if is_index:
-        children = [u for u in locs if _same_site(urlparse(u).hostname or "", origin_host) and not u.lower().endswith(".gz")][:2]
+        children = [u for u in locs if _same_site(_parse_url(u).hostname or "", origin_host) and not u.lower().endswith(".gz")][:2]
         locs = []
         for u in children:
             r = await get(u)
@@ -1413,7 +1427,11 @@ async def run_scan(input_url: str, extra_paths: list[str] | None = None, auto_pa
         html = main.text()
         js_urls = extract_same_origin_scripts(html, main.url)
         if auto_paths:
-            auto_found, auto_note, auto_requests = await discover_paths(client, origin, extra_paths, MAX_EXTRA_PATHS - len(extra_paths))
+            try:
+                auto_found, auto_note, auto_requests = await discover_paths(client, origin, extra_paths, MAX_EXTRA_PATHS - len(extra_paths))
+            except Exception:  # 自動找頁是加分項：對方給的內容再怪，也不能讓主掃描變成 500
+                log.warning("自動找頁失敗，已略過", exc_info=True)
+                auto_found, auto_note, auto_requests = [], "自動找頁：sitemap 內容無法解析，已略過", 0
             extra_paths = extra_paths + auto_found
 
         tasks: list[Any] = []

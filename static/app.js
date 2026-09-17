@@ -470,7 +470,7 @@ function renderConsult(c) {
         <details class="border-b hair">
           <summary class="py-3 flex items-center justify-between gap-4">
             <span class="text-sm text-slate-200"><span class="chev font-mono text-slate-600 mr-2">›</span>${esc(fp.title || fp.issue_id)}</span>
-            <span class="shrink-0 inline-flex items-center gap-2">${voteButtons('ai', (fp.issue_ids || [fp.issue_id || 'general']).join('+'))}<button data-copy="ai" data-index="${i}" class="font-mono text-[11px] px-3 py-1.5 border hair rounded-sm text-slate-300 hover:border-indigo-400 hover:text-indigo-200">COPY</button></span>
+            <span class="shrink-0 inline-flex items-center gap-2">${voteButtons('ai', ((fp.issue_ids || []).length ? fp.issue_ids : [fp.issue_id || 'general']).join('+'))}<button data-copy="ai" data-index="${i}" class="font-mono text-[11px] px-3 py-1.5 border hair rounded-sm text-slate-300 hover:border-indigo-400 hover:text-indigo-200">COPY</button></span>
           </summary>
           <pre class="pb-4 font-mono text-[12px] text-slate-400 leading-relaxed">${esc(fp.prompt)}</pre>
         </details>`).join('')}</div>
@@ -540,15 +540,21 @@ document.addEventListener('click', async (e) => {
   const btn = e.target.closest('[data-vote]');
   if (!btn || btn.disabled) return;
   e.preventDefault();
-  const { vote, kind, id } = btn.dataset;
-  btn.closest('[data-vote-group]').querySelectorAll('button').forEach((b) => { b.disabled = true; });
-  btn.classList.add('vote-on'); btn.setAttribute('aria-pressed', 'true');
-  try { localStorage.setItem(voteKey(kind, id), vote); } catch { /* 無痕模式 */ }
+  // 範例報告不送出，也不記進 localStorage（否則之後掃到同一個項目會被當成已投過）
   if (state.mode === 'sample') { toast('範例報告的回饋不會送出'); return; }
+  const { vote, kind, id } = btn.dataset;
+  const group = btn.closest('[data-vote-group]').querySelectorAll('button');
+  group.forEach((b) => { b.disabled = true; });
+  let ok = false;
   try {
     const r = await fetch('/api/feedback', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ kind, issue_id: id, vote }) });
-    toast(r.ok ? '感謝回饋，會用來改進修復 Prompt' : `回饋沒送出（HTTP ${r.status}）`);
+    ok = r.ok;
+    toast(ok ? '感謝回饋，會用來改進修復 Prompt' : `回饋沒送出（HTTP ${r.status}）`);
   } catch { toast('回饋沒送出，請稍後再試'); }
+  // 伺服器收下才鎖定並記住；失敗就還原，讓使用者可以再按一次
+  if (!ok) { group.forEach((b) => { b.disabled = false; }); return; }
+  btn.classList.add('vote-on'); btn.setAttribute('aria-pressed', 'true');
+  try { localStorage.setItem(voteKey(kind, id), vote); } catch { /* 無痕模式 */ }
 });
 
 renderHistory();

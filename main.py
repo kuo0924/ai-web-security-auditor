@@ -125,7 +125,8 @@ class ConsultRequest(BaseModel):
 
 class FeedbackRequest(BaseModel):
     kind: Literal["issue", "ai", "snippet"]  # 規則修復 Prompt｜AI 架構專屬 Prompt｜設定檔片段
-    issue_id: str = Field(..., min_length=1, max_length=80, pattern=r"^[A-Za-z0-9_+./-]+$")
+    # AI Prompt 的 id 是多個 issue id 用 + 串起來；整份目錄全串約 360 字元，所以上限給 400
+    issue_id: str = Field(..., min_length=1, max_length=400, pattern=r"^[A-Za-z0-9_+./-]+$")
     vote: Literal["up", "down"]
 
 
