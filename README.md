@@ -45,14 +45,16 @@ uvicorn main:app --reload --port 8000
 
 打開 http://127.0.0.1:8000 即可使用。macOS / Linux 把啟用虛擬環境改成 `source .venv/bin/activate`、複製改成 `cp .env.example .env`，其餘相同。
 
-跑測試：
+跑測試與靜態檢查：
 
 ```powershell
 pip install -r requirements-dev.txt
 python -m pytest -q
+ruff check .
+mypy .
 ```
 
-全部離線（LLM 與目標網站都用模擬），涵蓋 SSRF 判定、金鑰正則、SPA fallback、計分、進階檢查、供應商備援與額度、限流與統計、設定檔產生。GitHub Actions 每次 push 自動跑。
+全部離線（LLM 與目標網站都用模擬），涵蓋 SSRF 判定、金鑰正則、SPA fallback、計分、進階檢查、供應商備援與額度、限流與統計、設定檔產生、sitemap 自動找頁與惡意輸入的最壞情況。GitHub Actions 每次 push 會跑這三項，任何一項失敗就擋下來。
 
 ## 架構
 

@@ -16,10 +16,12 @@ except ImportError:  # pragma: no cover
     pass
 
 for _stream in (sys.stdout, sys.stderr):  # Windows 主控台預設 cp950，中文 log 會變亂碼
-    try:
-        _stream.reconfigure(encoding="utf-8")
-    except (AttributeError, ValueError):
-        pass
+    _reconfigure = getattr(_stream, "reconfigure", None)  # 只有 TextIOWrapper 有；被重導向成別的物件就跳過
+    if _reconfigure is not None:
+        try:
+            _reconfigure(encoding="utf-8")
+        except ValueError:
+            pass
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 log = logging.getLogger("auditor")
 

@@ -40,7 +40,9 @@ def build(url: str, headers: dict, html: str, js: str | None = None, cookies: li
         # safe_fetch 會跟著轉址，所以「有轉址」的探測結果是：最終 URL 為 https、hops 記錄那一跳
         probe = (fr(url, status=200, headers={"content-type": "text/html"}, body=b"<html>ok</html>", hops=[{"from": f"http://{host}/", "to": url, "status": 308}])
                  if http_redirects else fr(f"http://{host}/", status=200, headers={"content-type": "text/html"}, body=b"<html>ok</html>"))
-    js_results = [(f"{url.rstrip('/')}/app.js", fr(f"{url.rstrip('/')}/app.js", headers={"content-type": "application/javascript"}, body=js.encode()))] if js is not None else []
+    js_results: list[tuple[str, FetchResult | Exception]] = (
+        [(f"{url.rstrip('/')}/app.js", fr(f"{url.rstrip('/')}/app.js", headers={"content-type": "application/javascript"}, body=js.encode()))] if js is not None else []
+    )
     env = fr(f"{url.rstrip('/')}/.env", status=200, headers={"content-type": "text/plain"}, body=env_body) if env_body else fr(f"{url.rstrip('/')}/.env", status=404)
     report = evaluate(input_url=url, main=main, http_probe=probe, js_results=js_results, env_result=env,
                       git_result=fr(f"{url.rstrip('/')}/.git/config", status=404))

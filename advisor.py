@@ -259,7 +259,7 @@ def fallback_consult(scan: dict[str, Any], digest: dict[str, Any], reason: str) 
 def normalize_consult(data: dict[str, Any], scan: dict[str, Any]) -> dict[str, Any]:
     """補齊 LLM 漏掉的欄位，缺的修復 Prompt 用規則層的版本補上。"""
     static_prompts = {i["id"]: i for i in scan.get("issues", []) if int(i.get("penalty", 0) or 0) > 0}
-    prompts: list[dict[str, str]] = []
+    prompts: list[dict[str, Any]] = []  # issue_ids 是字串陣列，其餘欄位是字串
     covered: set[str] = set()
     for fp in data.get("fix_prompts") or []:
         if not isinstance(fp, dict) or not fp.get("prompt"):

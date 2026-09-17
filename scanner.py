@@ -427,9 +427,9 @@ def outdated_libraries(sources: list[tuple[str, str]]) -> list[str]:
                 out.append(f"jQuery {'.'.join(map(str, ver))}（3.5 以前有已知 XSS，建議升到 3.7+）")
         if re.search(r"AngularJS v1\.\d", head) or re.search(r"angular(?:\.min)?\.js\?v=1\.", head, re.I):
             out.append("AngularJS 1.x（2022 年起停止維護，建議遷移到 Angular 或其他框架）")
-        m = re.search(r"Bootstrap v(\d+)\.(\d+)\.(\d+)", head)
-        if m and int(m.group(1)) < 4:
-            out.append(f"Bootstrap {m.group(1)}.{m.group(2)}.{m.group(3)}（已停止維護，建議升級到 5.x）")
+        bootstrap = re.search(r"Bootstrap v(\d+)\.(\d+)\.(\d+)", head)
+        if bootstrap and int(bootstrap.group(1)) < 4:
+            out.append(f"Bootstrap {bootstrap.group(1)}.{bootstrap.group(2)}.{bootstrap.group(3)}（已停止維護，建議升級到 5.x）")
         if re.search(r"Vue\.js v2\.\d", head):
             out.append("Vue 2（2023 年底停止維護，建議升級到 Vue 3）")
     return _dedupe(out)[:6]
@@ -1187,11 +1187,11 @@ def evaluate(
     else:
         passed.append(make_pass("outdated_library", "未偵測到已停止維護的函式庫", "首頁與站內 JS 沒有舊版 jQuery、AngularJS 1.x、Bootstrap 3、Vue 2 的特徵"))
     exposed_maps: list[str] = []
-    for js_url, result in sourcemap_results:
-        if result == "inline":
+    for js_url, map_result in sourcemap_results:
+        if map_result == "inline":
             exposed_maps.append(f"{js_url} 內嵌了完整 source map")
-        elif isinstance(result, FetchResult) and result.status == 200 and looks_like_sourcemap(result.text(), result.headers.get("content-type", "")):
-            exposed_maps.append(f"{js_url} 的 .map 可下載（{len(result.body)} bytes{'+' if result.truncated else ''}）")
+        elif isinstance(map_result, FetchResult) and map_result.status == 200 and looks_like_sourcemap(map_result.text(), map_result.headers.get("content-type", "")):
+            exposed_maps.append(f"{js_url} 的 .map 可下載（{len(map_result.body)} bytes{'+' if map_result.truncated else ''}）")
     if exposed_maps:
         issues.append(make_issue("sourcemap_exposed", tech, "；".join(exposed_maps)))
     elif js_scanned:
@@ -1411,6 +1411,16 @@ def normalize_extra_paths(paths: list[str]) -> list[str]:
     return out[:MAX_EXTRA_PATHS]
 
 
+def _as_outcome(value: Any) -> FetchResult | Exception:
+    """asyncio.gather(return_exceptions=True) 的元素型別是 Any；抓取任務只會回 FetchResult 或例外。
+    其餘情況（例如任務被取消的 BaseException）一律轉成例外，讓報告如實記成「這一項沒抓到」而不是當掉。"""
+    if isinstance(value, (FetchResult, Exception)):
+        return value
+    if isinstance(value, BaseException):
+        return RuntimeError(f"抓取中止：{type(value).__name__}")
+    return RuntimeError(f"未預期的抓取結果：{type(value).__name__}")
+
+
 async def run_scan(input_url: str, extra_paths: list[str] | None = None, auto_paths: bool = False) -> dict[str, Any]:
     t_start = time.perf_counter()
     extra_paths = normalize_extra_paths(extra_paths or [])
@@ -1453,19 +1463,20 @@ async def run_scan(input_url: str, extra_paths: list[str] | None = None, auto_pa
         idx = 0
         http_probe: FetchResult | Exception | None = None
         if probe_needed:
-            http_probe = results[idx]
+            http_probe = _as_outcome(results[idx])
             idx += 1
-        js_results = []
+        js_results: list[tuple[str, FetchResult | Exception]] = []
         for js in js_urls:
-            js_results.append((js, results[idx]))
+            js_results.append((js, _as_outcome(results[idx])))
             idx += 1
-        env_result = results[idx]
-        env_variant_results = list(zip(env_paths[1:], results[idx + 1: idx + 3], strict=False))
+        env_result = _as_outcome(results[idx])
+        env_variant_results = [(p, _as_outcome(r)) for p, r in zip(env_paths[1:], results[idx + 1: idx + 3], strict=False)]
         idx += 3
-        git_result, security_txt_result, dns_result = results[idx], results[idx + 1], results[idx + 2]
+        git_result, security_txt_result = _as_outcome(results[idx]), _as_outcome(results[idx + 1])
+        dns_result = results[idx + 2]
         dns_info = dns_result if isinstance(dns_result, dict) else None
         idx += 3
-        extra_pages = list(zip(extra_paths, results[idx: idx + len(extra_paths)], strict=False))
+        extra_pages = [(p, _as_outcome(r)) for p, r in zip(extra_paths, results[idx: idx + len(extra_paths)], strict=False)]
 
         # 第二輪：站內 JS 若宣告了 source map，各多抓一次（只抓同源的 .map）
         sourcemap_results: list[tuple[str, FetchResult | Exception | str]] = []
@@ -1479,7 +1490,7 @@ async def run_scan(input_url: str, extra_paths: list[str] | None = None, auto_pa
                     map_tasks.append((js_url, safe_fetch(client, ref, max_bytes=MAX_PROBE_BYTES, follow_redirects=False)))
         if map_tasks:
             map_fetched = await asyncio.gather(*(t for _, t in map_tasks), return_exceptions=True)
-            sourcemap_results.extend((js_url, res) for (js_url, _), res in zip(map_tasks, map_fetched, strict=False))
+            sourcemap_results.extend((js_url, _as_outcome(res)) for (js_url, _), res in zip(map_tasks, map_fetched, strict=False))
 
     report = evaluate(
         input_url=input_url, main=main, http_probe=http_probe,

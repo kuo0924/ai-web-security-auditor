@@ -167,7 +167,7 @@ class UsageStats:
         return dict(counts)
 
     def feedback_view(self) -> dict[str, Any]:
-        items = []
+        items: list[dict[str, Any]] = []
         for key, c in self.feedback.items():
             kind, _, item_id = key.partition(":")
             total = c["up"] + c["down"]
