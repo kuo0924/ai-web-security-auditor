@@ -1,0 +1,35 @@
+feature,area,priority,original,clone,notes
+Request photo library permission incl. limited access,onboarding,must,yes,no,S02; handle denied + limited states
+Swipe right to keep / left to archive with live overlay,swipe,must,yes,no,S06; Picnic direction is right=keep (prototype is reversed)
+Card stack with next photo preloaded,swipe,must,yes,no,S06; smooth with iCloud thumbnails
+Tap buttons as alternative to swiping,swipe,must,yes,no,accessibility; also prototype has it
+Undo last swipe,undo,must,yes,no,S06 Undo shown briefly after action (ScreensDesign 02:30); depth unknown
+Kept photos never shown again,swipe,must,yes,no,Decision store
+Archive (in-app bin) listing archived photos with total size,archive,must,yes,no,S09
+Restore photo from archive back to unsorted,undo,must,yes,no,S09 'waits safely until you're sure'
+Empty archive in one tap via iOS delete (goes to Recently Deleted),delete,must,yes,no,S09 -> S10 system alert -> S11
+Handle user tapping Don't Allow in system delete alert,delete,must,yes,no,items stay archived
+Explain Recently Deleted 30-day recovery after deletion,delete,must,yes,no,F07; iOS has no API to restore from Recently Deleted
+Detect groups of similar / burst photos on-device,similar,must,unknown,no,evidence only from reviews ('compare feature'); Vision feature prints
+Compare view: pick best of a similar group and archive the rest,similar,must,unknown,no,S08 guess
+Sort library into sections by month with progress,sections,should,yes,no,S05 review 'finish a month or section'
+Storage freed celebration with GB counter,feedback,should,yes,no,S11 ScreensDesign 03:08
+Section completed screen,feedback,should,yes,no,S12
+Double-tap to favorite synced to Apple Photos Favorites,swipe,should,yes,no,listing 'Favorite Sync'
+Video and Live Photo cards,swipe,should,yes,no,reviews mention photos & videos
+Daily free swipe quota with upgrade prompt,monetization,should,yes,no,S07 100/day in listing
+Subscription paywall with free trial (StoreKit 2),monetization,should,yes,no,S04 weekly+trial / annual; consider lifetime option (review ask)
+Library scan onboarding animation,onboarding,should,yes,no,S03 ScreensDesign 00:26
+Onboarding explainer pages,onboarding,should,yes,no,S01 5 steps; aim for fewer
+Daily streak and bonus swipes,engagement,could,yes,no,S13 out of core scope
+Daily goal commitment,engagement,could,yes,no,ScreensDesign 05:21
+On This Day review of past years,sections,could,yes,no,review mentions reviewing that day's photos across years
+Shuffle random photos mode,sections,could,yes,no,MWM page review
+Referral rewards,growth,could,yes,no,S14 ScreensDesign 04:42
+Screenshot-only section,similar,could,yes,no,listing 'old screenshots'
+Stats: photos kept/deleted totals,feedback,could,yes,no,
+Interstitial ads every N swipes,monetization,skip,yes,skip,top complaint in reviews; positioning angle instead
+A/B price matrix (10 IAP variants),monetization,skip,yes,skip,not a feature; pick one clear price
+Picnic name / icon / copy / seasonal events,brand,skip,yes,skip,owned by Picnic Ventures / MWM; rebrand
+MWM paid user acquisition network,growth,skip,yes,skip,their ad spend and publishing network are not part of the product
+Cloud backup / upload of photos,privacy,skip,no,skip,original is on-device only; keep it that way
