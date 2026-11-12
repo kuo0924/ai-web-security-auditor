@@ -15,8 +15,8 @@
 
 ## 測試
 
-- Jest **32 個**（`npm test`）。資料層用 Node 內建的 `node:sqlite` 跑**跟 App 一樣的 `schema.sql`**，不是 mock。
-  （commit 訊息誤寫成 33，正確是 32。）
+- Jest **35 個**（`npm test`），包含 3 個兩萬張照片的規模測試。資料層用 Node 內建的 `node:sqlite` 跑**跟 App 一樣的 `schema.sql`**，不是 mock。
+  （垂直切片的 commit 訊息寫 33，當時實際是 32；之後加了規模測試變成 35。）
 - Web e2e **14 步**（`npm run e2e:web`），用真的觸控事件、手機寬度 390×844：
   拖曳左／右／上、短拖彈回、按鈕、復原、封存區、App 內確認、釋放空間、拒絕畫面、選更多、空封存區。
   0 個 console 錯誤。截圖在 `clone-screens/`。
