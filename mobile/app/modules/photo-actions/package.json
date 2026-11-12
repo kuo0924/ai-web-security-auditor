@@ -1,0 +1,9 @@
+{
+  "name": "photo-actions",
+  "version": "0.1.0",
+  "description": "Photo actions expo-media-library does not provide: Android system trash, file sizes.",
+  "main": "index.ts",
+  "license": "UNLICENSED",
+  "author": "",
+  "homepage": ""
+}

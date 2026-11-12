@@ -2,6 +2,7 @@ import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { AppProvider } from '../state/AppProvider';
 import { useTheme } from '../theme';
 
 export default function RootLayout() {
@@ -9,6 +10,7 @@ export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
+        <AppProvider>
         <StatusBar style={t.scheme === 'dark' ? 'light' : 'dark'} />
         <Stack
           screenOptions={{
@@ -17,9 +19,11 @@ export default function RootLayout() {
             contentStyle: { backgroundColor: t.color.bg },
           }}
         >
-          <Stack.Screen name="index" options={{ title: 'Photo Swipe' }} />
+          <Stack.Screen name="index" options={{ headerShown: false }} />
+          <Stack.Screen name="archive" options={{ title: '封存區' }} />
           <Stack.Screen name="design" options={{ title: '設計系統' }} />
         </Stack>
+        </AppProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );

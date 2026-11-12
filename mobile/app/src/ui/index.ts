@@ -6,3 +6,4 @@ export * from './Badge';
 export * from './DecisionStamp';
 export * from './ProgressBar';
 export * from './EmptyState';
+export * from './Sheet';

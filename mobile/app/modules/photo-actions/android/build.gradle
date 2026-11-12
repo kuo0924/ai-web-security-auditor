@@ -1,0 +1,19 @@
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+group = 'tw.photoswipe'
+version = '0.1.0'
+
+expoModule {
+  v2 true
+}
+
+android {
+  namespace "tw.photoswipe.photoactions"
+  defaultConfig {
+    versionCode 1
+    versionName '0.1.0'
+  }
+}

@@ -1,0 +1,5 @@
+{
+  "platforms": ["apple", "android"],
+  "apple": { "modules": ["PhotoActionsModule"] },
+  "android": { "modules": ["tw.photoswipe.photoactions.PhotoActionsModule"] }
+}
