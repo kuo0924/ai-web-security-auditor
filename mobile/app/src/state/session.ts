@@ -168,6 +168,20 @@ export class SessionController {
     return true;
   }
 
+  /**
+   * 比較畫面的結果：保留的記成 keep、其他的進封存區（跟往左滑一樣，之後再一起清空）。
+   * 這些照片從牌堆移除，避免又在滑動畫面出現。
+   */
+  async applyCompare(keep: Photo[], remove: Photo[]): Promise<void> {
+    for (const p of keep) await this.repo.decide(p, 'keep', 'compare');
+    for (const p of remove) await this.repo.decide(p, 'delete', 'compare');
+    const ids = new Set([...keep, ...remove].map((p) => p.id));
+    ids.forEach((id) => this.decidedThisSession.add(id));
+    this.set({ deck: { ...this.state.deck, queue: this.state.deck.queue.filter((p) => !ids.has(p.id)) } });
+    await this.refreshCounts();
+    if (this.state.deck.queue.length < LOW_WATER) void this.loadMore();
+  }
+
   archiveItems(): Promise<ArchiveItem[]> {
     return this.repo.archive();
   }

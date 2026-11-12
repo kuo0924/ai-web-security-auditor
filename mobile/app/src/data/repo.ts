@@ -3,6 +3,7 @@ import { estimateBytes, sectionKey } from '../core/format';
 import type { Db, SqlValue } from './db';
 import { SCHEMA_V1 } from './schema.gen';
 import type { RepoLike } from './types';
+import type { HashedPhoto, SimilarGroupDraft } from '../similar/group';
 
 export type ArchiveItem = {
   asset_id: string;
@@ -10,6 +11,12 @@ export type ArchiveItem = {
   status: 'archived' | 'deleting' | 'deleted' | 'trashed' | 'restored' | 'missing';
   byte_size: number | null;
   media_type: 'image' | 'video';
+};
+
+export type SimilarGroupRow = {
+  id: string;
+  bestId: string;
+  members: { id: string; createdAt: number | null; width: number | null; height: number | null; mediaType: 'image' | 'video' }[];
 };
 
 export type Stats = { kept: number; archived: number; removed: number; bytesRemoved: number; hidden: number };
@@ -204,6 +211,125 @@ export class Repo implements RepoLike {
       out.push({ ...b, ids: rows.map((r) => r.asset_id) });
     }
     return out;
+  }
+
+  // ───────── 相似照片（architecture §5） ─────────
+
+  /** 還沒算雜湊（或上次失敗但還沒試滿 3 次）、而且還沒做過決定的照片，新的先算 */
+  async assetsNeedingHash(limit: number): Promise<{ asset_id: string; modified_at: number | null }[]> {
+    return this.all(
+      `SELECT a.asset_id, a.modified_at FROM assets a
+       LEFT JOIN photo_hashes h ON h.asset_id = a.asset_id
+       WHERE a.media_type = 'image' AND a.missing_since IS NULL
+         AND NOT EXISTS (SELECT 1 FROM decisions d WHERE d.asset_id = a.asset_id)
+         AND (h.asset_id IS NULL
+              OR (h.error IS NOT NULL AND h.attempts < 3)
+              OR (a.modified_at IS NOT NULL AND h.source_mtime IS NOT a.modified_at))
+       ORDER BY a.created_at DESC LIMIT ?`,
+      [limit],
+    );
+  }
+
+  async saveHashes(rows: { id: string; phash?: string; dhash?: string; mtime: number | null; error?: string }[]): Promise<void> {
+    if (!rows.length) return;
+    const t = now();
+    await this.transaction(async (tx) => {
+      for (const r of rows) {
+        await tx.run(
+          `INSERT INTO photo_hashes (asset_id, algo, phash, dhash, source_mtime, computed_at, error, attempts)
+           VALUES (?, 'phash64_v1', ?, ?, ?, ?, ?, 1)
+           ON CONFLICT(asset_id) DO UPDATE SET phash = excluded.phash, dhash = excluded.dhash,
+             source_mtime = excluded.source_mtime, computed_at = excluded.computed_at, error = excluded.error,
+             attempts = CASE WHEN excluded.error IS NULL THEN 1 ELSE photo_hashes.attempts + 1 END`,
+          [r.id, r.phash ?? null, r.dhash ?? null, r.mtime, t, r.error ?? null],
+        );
+      }
+    });
+  }
+
+  /** 分析進度：還沒決定的照片裡，幾張已經有雜湊 */
+  async hashProgress(): Promise<{ hashed: number; total: number }> {
+    const [r] = await this.all<{ hashed: number; total: number }>(
+      `SELECT COUNT(h.phash) AS hashed, COUNT(*) AS total FROM assets a
+       LEFT JOIN photo_hashes h ON h.asset_id = a.asset_id
+       WHERE a.media_type = 'image' AND a.missing_since IS NULL
+         AND NOT EXISTS (SELECT 1 FROM decisions d WHERE d.asset_id = a.asset_id)`,
+    );
+    return { hashed: r?.hashed ?? 0, total: r?.total ?? 0 };
+  }
+
+  /** 拿來分組的照片：有雜湊、還沒決定、還在相簿裡 */
+  async hashedForGrouping(): Promise<HashedPhoto[]> {
+    const rows = await this.all<{ id: string; created_at: number | null; width: number | null; height: number | null; phash: string; dhash: string }>(
+      `SELECT a.asset_id AS id, a.created_at, a.width, a.height, h.phash, h.dhash FROM assets a
+       JOIN photo_hashes h ON h.asset_id = a.asset_id
+       WHERE h.phash IS NOT NULL AND h.dhash IS NOT NULL AND a.missing_since IS NULL
+         AND NOT EXISTS (SELECT 1 FROM decisions d WHERE d.asset_id = a.asset_id)`,
+    );
+    return rows.map((r) => ({ id: r.id, createdAt: r.created_at, width: r.width, height: r.height, phash: r.phash, dhash: r.dhash }));
+  }
+
+  /** 使用者按過「都保留」的組（之後不再出現；除非多了新照片） */
+  async dismissedMemberSets(): Promise<Set<string>[]> {
+    const rows = await this.all<{ group_id: string; asset_id: string }>(
+      `SELECT m.group_id, m.asset_id FROM similar_group_members m
+       JOIN similar_groups g ON g.id = m.group_id WHERE g.status = 'dismissed'`,
+    );
+    const by = new Map<string, Set<string>>();
+    for (const r of rows) (by.get(r.group_id) ?? by.set(r.group_id, new Set()).get(r.group_id)!).add(r.asset_id);
+    return [...by.values()];
+  }
+
+  /** 用新的分組結果取代所有「未處理」的組。已處理／已略過的保留（紀錄用） */
+  async replaceOpenGroups(drafts: SimilarGroupDraft[]): Promise<void> {
+    const t = now();
+    await this.transaction(async (tx) => {
+      await tx.run("DELETE FROM similar_groups WHERE status = 'open'");
+      for (const g of drafts) {
+        const id = uuid();
+        await tx.run(
+          'INSERT INTO similar_groups (id, window_start, window_end, size, best_asset_id, status, created_at) VALUES (?,?,?,?,?,?,?)',
+          [id, g.windowStart, g.windowEnd, g.memberIds.length, g.bestId, 'open', t],
+        );
+        for (const m of g.memberIds) {
+          await tx.run('INSERT INTO similar_group_members (group_id, asset_id, distance) VALUES (?,?,?)', [id, m, g.distances[m] ?? 0]);
+        }
+      }
+    });
+  }
+
+  async openGroups(): Promise<SimilarGroupRow[]> {
+    const groups = await this.all<{ id: string; best_asset_id: string; window_end: number }>(
+      "SELECT id, best_asset_id, window_end FROM similar_groups WHERE status = 'open' ORDER BY window_end DESC",
+    );
+    const members = await this.all<{ group_id: string; asset_id: string; created_at: number | null; width: number | null; height: number | null; media_type: 'image' | 'video' }>(
+      `SELECT m.group_id, m.asset_id, a.created_at, a.width, a.height, a.media_type FROM similar_group_members m
+       JOIN similar_groups g ON g.id = m.group_id AND g.status = 'open'
+       JOIN assets a ON a.asset_id = m.asset_id
+       WHERE NOT EXISTS (SELECT 1 FROM decisions d WHERE d.asset_id = m.asset_id)
+       ORDER BY a.created_at`,
+    );
+    const by = new Map<string, SimilarGroupRow['members']>();
+    for (const m of members)
+      (by.get(m.group_id) ?? by.set(m.group_id, []).get(m.group_id)!).push({
+        id: m.asset_id,
+        createdAt: m.created_at,
+        width: m.width,
+        height: m.height,
+        mediaType: m.media_type,
+      });
+    return groups
+      .map((g) => ({ id: g.id, bestId: g.best_asset_id, members: by.get(g.id) ?? [] }))
+      .filter((g) => g.members.length >= 2);
+  }
+
+  async setGroupStatus(groupId: string, status: 'resolved' | 'dismissed', bestId?: string): Promise<void> {
+    await this.run('UPDATE similar_groups SET status = ?, best_asset_id = COALESCE(?, best_asset_id), resolved_at = ? WHERE id = ?', [
+      status,
+      bestId ?? null,
+      now(),
+      groupId,
+    ]);
   }
 
   async stats(): Promise<Stats> {

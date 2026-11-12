@@ -2,24 +2,28 @@ import type { Photo, PhotoAccess, TrashOutcome } from '../core/types';
 import type { PhotoLibrary } from './library';
 
 /** 假相簿：web 預覽與測試用。照片用 picsum 以外的「本機產生色塊」，不連任何外部網站。 */
-export function makeSeedPhotos(n = 36, start = Date.UTC(2024, 2, 28, 10)): Photo[] {
+/**
+ * bursts = true：每 5 張的前 3 張是 20 秒內拍的連拍（給相似照片功能預覽／測試）。
+ */
+export function makeSeedPhotos(n = 36, start = Date.UTC(2024, 2, 28, 10), opts: { bursts?: boolean } = {}): Photo[] {
   const hues = [12, 32, 48, 140, 170, 200, 220, 260, 290, 330];
   return Array.from({ length: n }, (_, i) => {
-    const hue = hues[i % hues.length];
+    const base = opts.bursts && i % 5 < 3 ? i - (i % 5) : i; // 連拍的照片看起來要像
+    const hue = hues[base % hues.length];
     const label = encodeURIComponent(`#${i + 1}`);
     const svg =
       `<svg xmlns='http://www.w3.org/2000/svg' width='900' height='1200'>` +
       `<defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='1'>` +
       `<stop offset='0' stop-color='hsl(${hue},70%25,62%25)'/><stop offset='1' stop-color='hsl(${(hue + 40) % 360},60%25,35%25)'/>` +
       `</linearGradient></defs><rect width='900' height='1200' fill='url(%23g)'/>` +
-      `<circle cx='${300 + (i * 37) % 300}' cy='${420 + (i * 53) % 300}' r='170' fill='rgba(255,255,255,.25)'/>` +
+      `<circle cx='${300 + ((base * 37) % 300) + (i - base) * 18}' cy='${420 + ((base * 53) % 300)}' r='170' fill='rgba(255,255,255,.25)'/>` +
       `<text x='60' y='1130' font-size='72' font-family='sans-serif' fill='white'>${label}</text></svg>`;
     return {
       id: `fake-${i + 1}`,
       uri: `data:image/svg+xml;utf8,${svg}`,
       width: 3024,
       height: 4032,
-      createdAt: start - i * 9 * 3600 * 1000,
+      createdAt: opts.bursts && i % 5 < 3 ? start - Math.floor(i / 5) * 5 * 9 * 3600 * 1000 - (i % 5) * 20_000 : start - i * 9 * 3600 * 1000,
       mediaType: 'image',
     };
   });
