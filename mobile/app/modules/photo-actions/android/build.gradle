@@ -17,3 +17,9 @@ android {
     versionName '0.1.0'
   }
 }
+
+dependencies {
+  // IntentSenderRequest／StartIntentSenderForResult（系統垃圾桶確認視窗）。版本對齊 expo-media-library。
+  implementation 'androidx.activity:activity-ktx:1.11.0'
+  implementation "androidx.annotation:annotation:1.9.1"
+}
