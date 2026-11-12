@@ -116,3 +116,22 @@ describe('比較畫面的動作', () => {
     expect(similar.state.groups.find((x) => x.id === gid)).toBeUndefined();
   });
 });
+
+describe('不跟滑動搶資源', () => {
+  test('hold()：使用者在滑的時候先不分析，停手後才繼續', async () => {
+    const { similar } = await setup(10);
+    let firstHashAt = 0;
+    const t0 = Date.now();
+    const timed: ImageSource = {
+      gray32: async (p) => {
+        firstHashAt ||= Date.now();
+        return fakeImageSource.gray32(p);
+      },
+    };
+    (similar as unknown as { source: ImageSource }).source = timed;
+    similar.hold(300);
+    await similar.scan();
+    expect(firstHashAt - t0).toBeGreaterThanOrEqual(290);
+    expect(similar.state.groups).toHaveLength(2);
+  });
+});

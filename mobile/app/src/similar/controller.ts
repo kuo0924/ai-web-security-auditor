@@ -39,8 +39,10 @@ export class SimilarController {
   private listeners = new Set<() => void>();
   private running?: Promise<void>;
   private paused = false;
+  private holdUntil = 0;
   private resumeWaiter?: () => void;
   private opts: Opts;
+  private lastProgress = 0;
 
   constructor(
     private repo: RepoLike,
@@ -81,8 +83,18 @@ export class SimilarController {
     this.resumeWaiter = undefined;
   }
 
+  /**
+   * 使用者正在滑：先讓開。每次滑動都延長，停手 ms 毫秒後才繼續分析，
+   * 這樣分析照片不會跟滑動搶資源（「滑起來很卡」的修正之一）。
+   */
+  hold(ms = 2500) {
+    this.holdUntil = Date.now() + ms;
+  }
+
   private async gate(phase: SimilarState['phase']) {
     if (this.paused) await new Promise<void>((r) => (this.resumeWaiter = r));
+    while (Date.now() < this.holdUntil) await new Promise((r) => setTimeout(r, Math.min(500, this.holdUntil - Date.now())));
+    // 只有階段改變才通知畫面（進度數字另外節流）
     if (this.state.phase !== phase) this.set({ phase });
   }
 
@@ -97,6 +109,7 @@ export class SimilarController {
         if (!batch.length) break;
         const rows = [];
         for (const a of batch) {
+          if (Date.now() < this.holdUntil) await this.gate('hashing');
           try {
             const gray = await this.source.gray32({ id: a.asset_id, uri: this.lib.uriFor(a.asset_id) });
             rows.push({ id: a.asset_id, phash: phash(gray), dhash: dhash(gray), mtime: a.modified_at });
@@ -107,7 +120,10 @@ export class SimilarController {
         }
         await this.repo.saveHashes(rows);
         sinceRegroup += rows.length;
-        this.set(await this.repo.hashProgress());
+        if (Date.now() - this.lastProgress > 1500) {
+          this.lastProgress = Date.now();
+          this.set(await this.repo.hashProgress());
+        }
         if (sinceRegroup >= this.opts.regroupEvery) {
           sinceRegroup = 0;
           await this.regroup();

@@ -1,7 +1,7 @@
 feature,area,priority,original,clone,notes
 Request photo library permission incl. limited access,onboarding,must,yes,yes,S02; handle denied + limited states | clone: Expo: full/partial/denied + 選更多; device not verified yet
 Swipe right to keep / left to archive with live overlay,swipe,must,yes,yes,S06; decided 2026-11-12: right=keep / left=delete (same as Picnic) | clone: Expo S06; touch e2e on web; device not verified yet
-Card stack with next photo preloaded,swipe,must,yes,partial,S06; smooth with iCloud thumbnails | clone: next card rendered behind; no thumbnail prefetch of following 5 yet
+Card stack with next photo preloaded,swipe,must,yes,yes,S06; smooth with iCloud thumbnails | clone: two cards stacked behind; Image.prefetch of the next 5 photos
 Tap buttons as alternative to swiping,swipe,must,yes,yes,accessibility; also prototype has it | clone: ActionBar + accessibilityActions
 Swipe up to hide photo,hide,must,no,partial,our addition (not in Picnic); iOS system Hidden album / Android in-app locked vault | clone: gesture + recorded as hiding in hidden_items; vault / iOS isHidden not built
 Android locked vault: copy+sha256 verify then delete original with rollback on cancel,hide,must,no,no,S15; data-loss safeguards in architecture 4.2
@@ -10,15 +10,15 @@ Unlock hidden album with biometrics and block screenshots,hide,must,no,no,expo-l
 Unhide photo back to gallery (restore original folder/name/date on Android),hide,must,no,no,F09; Android gets a new asset id
 Undo last swipe,undo,must,yes,yes,S06 Undo shown briefly after action (ScreensDesign 02:30); depth unknown | clone: toast 4s + undo button; history 50
 Kept photos never shown again,swipe,must,yes,yes,Decision store | clone: decisions table; reopen resumes
-Archive (in-app bin) listing archived photos with total size,archive,must,yes,partial,"S09 | clone: grid + restore; total size shown in confirm sheet, not on the grid header"
+Archive (in-app bin) listing archived photos with total size,archive,must,yes,yes,"S09 | clone: summary card on top with total (real sizes on Android, estimates on iOS) + selected total; remove button shows size"
 Restore photo from archive back to unsorted,undo,must,yes,yes,S09 'waits safely until you're sure'
-Empty archive in one tap via iOS delete (goes to Recently Deleted),delete,must,yes,partial,S09 -> S10 system alert -> S11 | clone: Android createTrashRequest built; iOS path written (expo-media-library delete) but not run on iPhone
+Empty archive in one tap via iOS delete (goes to Recently Deleted),delete,must,yes,partial,"S09 -> S10 system alert -> S11 | clone: iOS path unit-tested with mocked expo-media-library (one batch, PhotoKit 3072 = cancelled, reconcile); still needs a real iPhone run"
 Handle user tapping Don't Allow in system delete alert,delete,must,yes,yes,items stay archived | clone: items stay archived; tested with fake + reconcile
 Explain Recently Deleted 30-day recovery after deletion,delete,must,yes,yes,F07; iOS has no API to restore from Recently Deleted | clone: S10 confirm + S11 result copy
 Detect groups of similar / burst photos on-device,similar,must,unknown,yes,"evidence only from reviews ('compare feature'); Vision feature prints | clone: pHash+dHash in JS, 10-min window + union-find, exact dups any time; background scan with pause; tested on synthetic scenes (190 different pairs, 0 false matches); real-photo thresholds need device tuning"
 Compare view: pick best of a similar group and archive the rest,similar,must,unknown,yes,"S08 guess | clone: S08 side by side, suggested best (highest MP, then latest), keep ≥1, keep-all dismisses forever, later"
 Sort library into sections by month with progress,sections,should,yes,no,S05 review 'finish a month or section'
-Storage freed celebration with GB counter,feedback,should,yes,partial,S11 ScreensDesign 03:08 | clone: S11 shows ~GB; no count-up animation yet
+Storage freed celebration with GB counter,feedback,should,yes,yes,S11 ScreensDesign 03:08 | clone: S11 count-up number (respects Reduce Motion)
 Section completed screen,feedback,should,yes,no,S12
 Double-tap to favorite synced to Apple Photos Favorites,swipe,should,yes,no,listing 'Favorite Sync'
 Video and Live Photo cards,swipe,should,yes,no,reviews mention photos & videos
@@ -46,3 +46,4 @@ Keep month sections simple (one way to browse),sections,should,no,no,F5 fixes.md
 Similar-photo compare: auto-advance to next group and no accidental swipe,similar,should,no,yes,F6 fixes.md: Picnic compare bugs | clone: S08 has no swipe gesture; next group appears after apply/keep-all
 Live Photos do not autoplay (long-press to play),swipe,should,no,no,F7 fixes.md: Slidebox reviews
 Ask for rating only after first successful cleanup,feedback,could,no,no,F8 fixes.md: 6 reviews (thin) but free to fix
+"Show shot date, time and place on each photo (top centre)",swipe,should,yes,yes,user request 2026-11-12 (like Picnic); place via system geocoder without location permission; Android needs ACCESS_MEDIA_LOCATION + setRequireOriginal

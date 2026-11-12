@@ -29,6 +29,12 @@ export function makeSeedPhotos(n = 36, start = Date.UTC(2024, 2, 28, 10), opts: 
   });
 }
 
+const FAKE_SPOTS = [
+  { lat: 25.03, lng: 121.56, place: { city: '台北市', district: '大安區', region: '台北市', country: '台灣', isoCountryCode: 'TW' } },
+  { lat: 22.62, lng: 120.3, place: { city: '高雄市', district: '鹽埕區', region: '高雄市', country: '台灣', isoCountryCode: 'TW' } },
+  { lat: 35.01, lng: 135.77, place: { city: '京都市', district: null, region: '京都府', country: '日本', isoCountryCode: 'JP' } },
+  { lat: 24.15, lng: 120.67, place: { city: '台中市', district: '西區', region: '台中市', country: '台灣', isoCountryCode: 'TW' } },
+];
 const seedCache = new Map<string, string>();
 function seedUri(id: string): string {
   if (!seedCache.size) for (const p of makeSeedPhotos(200)) seedCache.set(p.id, p.uri);
@@ -60,6 +66,15 @@ export function fakeLibrary(opts: { photos?: Photo[]; access?: PhotoAccess; canc
       return { status: 'confirmed', method: 'android_trash', removedIds: ids };
     },
     uriFor: (id) => state.photos.find((p) => p.id === id)?.uri ?? seedUri(id),
+    // 假地點：每 5 張換一個地方，第 4 張沒有 GPS（測試「沒有地點」的顯示）
+    locations: async (ids) =>
+      ids.map((id) => {
+        const i = Number(id.replace(/^fake-/, '')) - 1;
+        if (!(i >= 0) || i % 5 === 3) return null;
+        const spot = FAKE_SPOTS[Math.floor(i / 5) % FAKE_SPOTS.length];
+        return { latitude: spot.lat, longitude: spot.lng };
+      }),
+    placeName: async (lat, lng) => FAKE_SPOTS.find((s) => s.lat === lat && s.lng === lng)?.place ?? null,
     trashMethod: () => 'android_trash',
     trashIsRecoverable: () => true,
   };

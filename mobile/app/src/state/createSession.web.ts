@@ -1,5 +1,6 @@
 import { MemoryRepo } from '../data/memoryRepo';
 import { fakeLibrary, makeSeedPhotos } from '../media/fakeLibrary';
+import { PlaceService } from '../media/places';
 import { SimilarController } from '../similar/controller';
 import { fakeImageSource } from '../similar/fakeImageSource';
 import { SessionController } from './session';
@@ -12,5 +13,5 @@ export async function createSession(): Promise<AppControllers> {
   const repo = new MemoryRepo();
   const lib = fakeLibrary({ access, photos: makeSeedPhotos(36, undefined, { bursts: true }) });
   const session = new SessionController(repo, lib);
-  return { session, similar: new SimilarController(repo, lib, fakeImageSource, session, { restMs: 0 }) };
+  return { session, similar: new SimilarController(repo, lib, fakeImageSource, session, { restMs: 0 }), places: new PlaceService(lib, 'TW') };
 }

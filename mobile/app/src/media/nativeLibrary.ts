@@ -8,6 +8,16 @@ import type { PhotoLibrary } from './library';
 // 只要照片：不連影片／音訊一起要（Flutter 原型 BUG-001：要了 manifest 沒宣告的權限會永遠被判成「部分」）
 const GRANULAR: ML.GranularPermission[] = ['photo'];
 
+/**
+ * 使用者在系統刪除視窗按了取消／不允許。
+ * - Android（expo-media-library）：PermissionsException「User didn't grant write permission…」
+ * - iOS：PhotoKit 的 userCancelled，錯誤碼 3072。訊息通常是
+ *   「The operation couldn’t be completed. (PHPhotosErrorDomain error 3072.)」，裡面沒有 "cancel" 這個字。
+ */
+export function isUserCancel(message: string): boolean {
+  return /cancel|denied|grant|\b3072\b/i.test(message);
+}
+
 function displayUri(id: string): string {
   if (Platform.OS === 'ios') return id.startsWith('ph://') ? id : `ph://${id}`;
   return id; // Android 的 ID 本身就是 content:// 網址
@@ -77,7 +87,7 @@ export const nativeLibrary: PhotoLibrary = {
       const removedIds = ids.filter((id) => !present.has(id));
       const msg = e instanceof Error ? e.message : String(e);
       if (removedIds.length) return { status: 'confirmed', method, removedIds, error: msg };
-      return { status: /cancel|denied|grant/i.test(msg) ? 'cancelled' : 'failed', method, removedIds: [], error: msg };
+      return { status: isUserCancel(msg) ? 'cancelled' : 'failed', method, removedIds: [], error: msg };
     }
     // 成功也要對帳：Android 10 以下會逐張刪、錯誤被吞掉（architecture §4.1）
     const present = await this.stillPresent(ids);
@@ -85,6 +95,21 @@ export const nativeLibrary: PhotoLibrary = {
   },
 
   uriFor: displayUri,
+  async locations(ids) {
+    if (!PhotoActions) return ids.map(() => null);
+    try {
+      return await PhotoActions.locations(ids);
+    } catch {
+      return ids.map(() => null);
+    }
+  },
+  async placeName(latitude, longitude) {
+    try {
+      return (await PhotoActions?.placeName(latitude, longitude)) ?? null;
+    } catch {
+      return null;
+    }
+  },
   trashMethod: () =>
     Platform.OS === 'ios'
       ? 'ios_recently_deleted'

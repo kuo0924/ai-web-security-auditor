@@ -72,13 +72,17 @@ export class Repo implements RepoLike {
   async upsertAssets(photos: Photo[]): Promise<void> {
     if (!photos.length) return;
     const t = now();
+    // 一個語句寫 100 張（不是一張一個 await）：索引兩萬張照片時，JS 執行緒不會被佔滿，滑動才不會卡
     await this.transaction(async (tx) => {
-      for (const p of photos) {
+      for (let i = 0; i < photos.length; i += 100) {
+        const chunk = photos.slice(i, i + 100);
+        const params: SqlValue[] = [];
+        for (const p of chunk) params.push(p.id, p.mediaType, p.width, p.height, p.createdAt, sectionKey(p.createdAt), t, t);
         await tx.run(
           `INSERT INTO assets (asset_id, media_type, width, height, created_at, section_key, first_seen_at, last_seen_at)
-           VALUES (?,?,?,?,?,?,?,?)
+           VALUES ${chunk.map(() => '(?,?,?,?,?,?,?,?)').join(',')}
            ON CONFLICT(asset_id) DO UPDATE SET last_seen_at = excluded.last_seen_at, missing_since = NULL`,
-          [p.id, p.mediaType, p.width, p.height, p.createdAt, sectionKey(p.createdAt), t, t],
+          params,
         );
       }
     });

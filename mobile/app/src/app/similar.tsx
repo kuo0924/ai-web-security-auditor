@@ -161,7 +161,7 @@ export default function SimilarScreen() {
                   }}
                 >
                   <Image source={{ uri: similar.uriFor(m.id) }} style={{ flex: 1 }} contentFit="cover" recyclingKey={m.id} />
-                  <View style={{ position: 'absolute', top: 8, right: 8, width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: on ? t.color.keep : 'rgba(0,0,0,0.5)' }}>
+                  <View style={{ position: 'absolute', top: 8, right: 8, width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: on ? t.color.keep : t.overlay.glass }}>
                     <Icon name={on ? 'check' : 'delete'} size={16} color={on ? 'on-keep' : 'on-photo'} scheme="dark" />
                   </View>
                 </View>

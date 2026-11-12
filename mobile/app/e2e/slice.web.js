@@ -29,7 +29,7 @@ const srv = http.createServer((req, res) => {
     for (let i = 1; i <= 15; i++) { await p.cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: x + dx*i/15, y: y + dy*i/15 }] }); await p.waitForTimeout(16); }
     await p.cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] }); await p.waitForTimeout(700);
   };
-  const counter = async (p) => (await p.getByText(/這次已整理 \d+ 張/).textContent()).match(/\d+/)[0] | 0;
+  const counter = async (p) => { const el = p.getByText(/已整理 \d+ 張/); return (await el.count()) ? ((await el.first().textContent()).match(/已整理 (\d+)/)[1] | 0) : 0; };
   try {
     const p = await newPage();
     await p.goto(base + '/', { waitUntil: 'networkidle' }); await p.waitForTimeout(800);
@@ -59,7 +59,7 @@ const srv = http.createServer((req, res) => {
     step('S10 in-app confirm explains 30-day recovery', await p.getByText(/30 天內都能救回/).count() > 0);
     await p.getByRole('button', { name: '移除', exact: true }).tap(); await p.waitForTimeout(800);
     await p.screenshot({ path: `${out}/S11-freed.png` });
-    step('S11 shows bytes and count', await p.getByText(/已移除 2 張照片/).count() === 1 && await p.getByText(/^約 [\d.]+ MB$/).count() === 1);
+    step('S11 shows bytes and count', await p.getByText(/移除了 2 張照片/).count() === 1 && await p.getByText(/^[\d.]+ MB$/).count() === 1);
     await p.getByRole('button', { name: '繼續整理' }).tap(); await p.waitForTimeout(500);
     step('back on S06 with empty archive', await p.getByLabel('封存區，0 張').count() === 1);
 

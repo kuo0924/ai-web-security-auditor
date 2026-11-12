@@ -17,7 +17,7 @@ type Props = {
 export function IconButton({ icon, label, onPress, variant = 'filled', role = 'text', size = 44, disabled, scheme }: Props) {
   const t = useTheme(scheme);
   const bg =
-    variant === 'overlay' ? 'rgba(0,0,0,0.45)' : variant === 'tinted' ? t.color[role] + '26' : t.color['surface-raised'];
+    variant === 'overlay' ? t.overlay.glass : variant === 'tinted' ? t.color[role] + '26' : t.color['surface-raised'];
   const fg = variant === 'overlay' ? t.color['on-photo'] : t.color[role];
   return (
     <Pressable

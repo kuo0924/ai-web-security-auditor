@@ -1,4 +1,5 @@
 import type { Photo, PhotoAccess, TrashMethod, TrashOutcome } from '../core/types';
+import type { Place } from '../core/photoMeta';
 
 /**
  * 相簿操作的介面。正式版是 nativeLibrary（expo-media-library＋photo-actions 模組），
@@ -21,6 +22,10 @@ export interface PhotoLibrary {
   moveToTrash(ids: string[]): Promise<TrashOutcome>;
   /** 給 expo-image 顯示用的網址 */
   uriFor(id: string): string;
+  /** 拍攝地點（GPS）；沒有就是 null */
+  locations(ids: string[]): Promise<({ latitude: number; longitude: number } | null)[]>;
+  /** 座標 → 地名（系統 Geocoder）；查不到就是 null */
+  placeName(latitude: number, longitude: number): Promise<Place | null>;
   /** 這台手機會用哪種方式刪除（決定能不能救回、資料庫怎麼記） */
   trashMethod(): TrashMethod;
   /** 這台手機刪掉的照片能不能在 30 天內救回 */

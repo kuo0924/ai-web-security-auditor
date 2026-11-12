@@ -14,7 +14,7 @@ export function Sheet({ visible, onClose, title, children, dismissable = true }:
     <Modal visible={visible} transparent animationType="slide" onRequestClose={dismissable ? onClose : () => {}}>
       <Pressable
         accessibilityLabel="關閉"
-        style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.4)' }}
+        style={{ flex: 1, backgroundColor: t.overlay['sheet-backdrop'] }}
         onPress={dismissable ? onClose : undefined}
       />
       <View

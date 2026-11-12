@@ -16,6 +16,7 @@ export type Theme = {
   radius: typeof tokens.radius;
   hit: number;
   motion: typeof tokens.motion;
+  overlay: typeof tokens.overlay;
   swipe: typeof tokens.swipe;
 };
 
@@ -28,6 +29,7 @@ export function makeTheme(scheme: 'light' | 'dark'): Theme {
     radius: tokens.radius,
     hit: tokens.hit.min,
     motion: tokens.motion,
+    overlay: tokens.overlay,
     swipe: tokens.swipe,
   };
 }

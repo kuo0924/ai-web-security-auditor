@@ -11,12 +11,13 @@
 | 2026-11-12 | S11 釋放空間 | partial | 數字跑動動畫 | 寫「約 X」：iOS 拿不到檔案大小，用解析度估算 |
 | 2026-11-12 | Android release APK | done（未實機執行） | 實機測試 | 需要 JDK 17、`repo.reactnative.dev`；自己的原生模組少宣告 `androidx.activity`；相依套件帶進多餘權限（已擋） |
 | 2026-11-12 | **S08 相似照片**：偵測＋比較畫面 | done（web＋單元測試）／**實機待驗證** | 門檻要用真照片調；iCloud 照片的分析速度與流量 | 測試資料的合成場景每 80 個 seed 重複，造成「完全相同的圖」被正確分組；改用 mulberry32 產生版面 |
+| 2026-11-12 | **卡頓修正**＋拍攝日期／地點＋設計細修 | done（web＋單元測試）／**實機待驗證** | 實機量測滑動幀率 | 見下方「卡頓的原因」；Android 讀 GPS 要 `setRequireOriginal`＋`ACCESS_MEDIA_LOCATION`，expo-media-library 沒做；expo-location 會帶進 GPS 權限，所以地名改用自己的模組 |
 | — | 往上滑隱藏 | partial | 只做了手勢和記錄（`hidden_items.status = 'hiding'`）；Android 上鎖相簿、iOS `isHidden` 都還沒做 | — |
 | — | S05、S07、S12–S16 | not started | 月份分區、付費牆、onboarding、上鎖相簿 | — |
 
 ## 測試
 
-- Jest **57 個**（`npm test`），包含 3 個兩萬張照片的規模測試、14 個雜湊／分組、8 個相似照片流程。資料層用 Node 內建的 `node:sqlite` 跑**跟 App 一樣的 `schema.sql`**，不是 mock。
+- Jest **72 個**（`npm test`），包含 3 個兩萬張照片的規模測試、14 個雜湊／分組、9 個相似照片流程、7 個 iOS 刪除路徑（mock）、7 個日期／地點。資料層用 Node 內建的 `node:sqlite` 跑**跟 App 一樣的 `schema.sql`**，不是 mock。
   （垂直切片的 commit 訊息寫 33，當時實際是 32；之後加了規模測試變成 35。）
 - Web e2e **14＋12 步**（`npm run e2e:web`：主流程＋相似照片），用真的觸控事件、手機寬度 390×844：
   拖曳左／右／上、短拖彈回、按鈕、復原、封存區、App 內確認、釋放空間、拒絕畫面、選更多、空封存區。
@@ -37,3 +38,15 @@
 
 - 還沒用 Drizzle：先用一個很小的 `Db` 介面＋原始 SQL，好讓同一份 SQL 在 Jest 用 `node:sqlite` 測。之後要換 Drizzle 也只改 `data/`。
 - web 預覽用 `MemoryRepo`（瀏覽器沒有 expo-sqlite 原生資料庫）。正式行為以 SQLite 的 `Repo` 為準。
+
+## 卡頓的原因（2026-11-12，使用者回報「滑起來很卡」）
+
+從程式碼找到、已修（實機幀率還沒量）：
+
+1. **相似照片分析的進度更新讓整個滑動畫面每 ~150ms 重繪**，拖曳中卡片的手勢設定被重建。
+   → 滑動畫面只訂閱分組結果（`useSimilarGroups`），進度更新節流到 1.5 秒；卡片 `memo`，所有 callback 和 footer 都穩定。
+2. **開 App 時把整個相簿一張一張寫進資料庫**（每張一個 await），JS 執行緒被佔滿。
+   → 一個 SQL 語句寫 100 張；分析延後 3 秒才開始。
+3. **分析照片跟滑動搶資源**。
+   → 手指一碰到卡片、每滑一張都 `hold()`，停手 2.5 秒後才繼續分析。
+4. 原本準備加的模糊背景（每張卡片多做一次大圖模糊）在 Android 上很重 → 沒有加。

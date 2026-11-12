@@ -37,6 +37,11 @@ export function undo(state: DeckState): { state: DeckState; undone?: { photo: Ph
   };
 }
 
+/** 要預先載入縮圖的照片：目前這張之後的 n 張（目前這張和下一張已經在畫面上） */
+export function prefetchTargets(queue: Photo[], n = 5): string[] {
+  return queue.slice(1, 1 + n).map((p) => p.uri);
+}
+
 /** 加入下一頁照片：去掉已在佇列、已做過決定的。 */
 export function append(state: DeckState, photos: Photo[], decided: Set<string>): DeckState {
   const seen = new Set(state.queue.map((p) => p.id));
