@@ -5,9 +5,9 @@
   AA     6.75:1  text-muted               on bg                   
   AA     6.19:1  text-muted               on surface              
   AA     6.75:1  text-muted               on surface-raised       
-  AA     5.52:1  on-accent                on accent               
-  AA     5.52:1  accent                   on bg                   
-  AA     5.06:1  accent                   on surface              
+  AA     6.99:1  on-accent                on accent               
+  AA     6.99:1  accent                   on bg                   
+  AA     6.41:1  accent                   on surface              
   AA     5.88:1  on-keep                  on keep                 
   AA     5.88:1  keep                     on bg                   
   AA     5.39:1  keep                     on surface              
@@ -23,7 +23,7 @@
   AAA   21.00:1  on-photo                 on photo-backdrop       
   PASS   3.88:1  border-input             on bg                   ui
   PASS   3.56:1  border-input             on surface              ui
-  PASS   5.52:1  accent                   on bg                   ui
+  PASS   6.99:1  accent                   on bg                   ui
 
   25 pairs, 0 failing AA
 ===== dark =====
@@ -33,9 +33,9 @@
   AAA    8.19:1  text-muted               on bg                   
   AAA    7.28:1  text-muted               on surface              
   AA     6.48:1  text-muted               on surface-raised       
-  AAA    8.39:1  on-accent                on accent               
-  AAA    8.39:1  accent                   on bg                   
-  AAA    7.46:1  accent                   on surface              
+  AAA    8.64:1  on-accent                on accent               
+  AAA    8.51:1  accent                   on bg                   
+  AAA    7.56:1  accent                   on surface              
   AAA    8.93:1  on-keep                  on keep                 
   AAA    9.07:1  keep                     on bg                   
   AAA    8.07:1  keep                     on surface              
@@ -51,7 +51,7 @@
   AAA   21.00:1  on-photo                 on photo-backdrop       
   PASS   5.14:1  border-input             on bg                   ui
   PASS   4.57:1  border-input             on surface              ui
-  PASS   8.39:1  accent                   on bg                   ui
+  PASS   8.51:1  accent                   on bg                   ui
 
   25 pairs, 0 failing AA
 exit=0

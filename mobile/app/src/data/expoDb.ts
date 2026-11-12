@@ -1,7 +1,7 @@
 import * as SQLite from 'expo-sqlite';
 import type { Db, SqlValue } from './db';
 
-export async function openExpoDb(name = 'photo-swipe.db'): Promise<Db> {
+export async function openExpoDb(name = 'onceover.db'): Promise<Db> {
   const db = await SQLite.openDatabaseAsync(name);
   return {
     exec: (sql) => db.execAsync(sql),

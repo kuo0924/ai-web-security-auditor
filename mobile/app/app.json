@@ -1,14 +1,14 @@
 {
   "expo": {
-    "name": "Photo Swipe",
-    "slug": "photo-swipe",
+    "name": "Onceover",
+    "slug": "onceover",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "tw.photoswipe.app",
+      "bundleIdentifier": "tw.onceover.app",
       "infoPlist": {
         "NSPhotoLibraryUsageDescription": "需要讀取相簿，才能讓你逐張滑動整理照片。照片只在手機上處理，不會上傳。",
         "NSPhotoLibraryAddUsageDescription": "需要相簿權限來整理照片。",
@@ -17,13 +17,13 @@
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
+        "backgroundColor": "#A3216F",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "tw.photoswipe.app",
+      "package": "tw.onceover.app",
       "permissions": [
         "android.permission.READ_MEDIA_IMAGES",
         "android.permission.READ_MEDIA_VISUAL_USER_SELECTED",
@@ -52,7 +52,7 @@
         }
       ]
     ],
-    "scheme": "photoswipe",
+    "scheme": "onceover",
     "experiments": {
       "typedRoutes": true
     }

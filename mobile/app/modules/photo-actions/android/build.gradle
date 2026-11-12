@@ -3,7 +3,7 @@ plugins {
   id 'expo-module-gradle-plugin'
 }
 
-group = 'tw.photoswipe'
+group = 'tw.onceover'
 version = '0.1.0'
 
 expoModule {
@@ -11,7 +11,7 @@ expoModule {
 }
 
 android {
-  namespace "tw.photoswipe.photoactions"
+  namespace "tw.onceover.photoactions"
   defaultConfig {
     versionCode 1
     versionName '0.1.0'

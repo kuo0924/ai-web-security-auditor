@@ -1,4 +1,4 @@
-package tw.photoswipe.photoactions
+package tw.onceover.photoactions
 
 import android.app.Activity
 import android.content.ContentResolver

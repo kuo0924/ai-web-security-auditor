@@ -1,0 +1,7 @@
+{
+  "name": "Onceover",
+  "name_zh": "一次清",
+  "avoid": ["Picnic", "Picnic Photos", "Picnic Ventures", "Super Picnic", "Swipewipe", "MWM"],
+  "domains": ["picnic.photos", "mwm.ai"],
+  "colors": ["#EBFC20", "#2D98C6", "#D299FF", "#6EF982"]
+}
