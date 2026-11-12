@@ -3,6 +3,11 @@ Request photo library permission incl. limited access,onboarding,must,yes,no,S02
 Swipe right to keep / left to archive with live overlay,swipe,must,yes,no,S06; Picnic direction is right=keep (prototype is reversed)
 Card stack with next photo preloaded,swipe,must,yes,no,S06; smooth with iCloud thumbnails
 Tap buttons as alternative to swiping,swipe,must,yes,no,accessibility; also prototype has it
+Swipe up to hide photo,hide,must,no,no,our addition (not in Picnic); iOS system Hidden album / Android in-app locked vault
+Android locked vault: copy+sha256 verify then delete original with rollback on cancel,hide,must,no,no,S15; data-loss safeguards in architecture 4.2
+Warn that uninstalling deletes Android vault photos + move-all-back button,hide,must,no,no,S16
+Unlock hidden album with biometrics and block screenshots,hide,must,no,no,expo-local-authentication + expo-screen-capture
+Unhide photo back to gallery (restore original folder/name/date on Android),hide,must,no,no,F09; Android gets a new asset id
 Undo last swipe,undo,must,yes,no,S06 Undo shown briefly after action (ScreensDesign 02:30); depth unknown
 Kept photos never shown again,swipe,must,yes,no,Decision store
 Archive (in-app bin) listing archived photos with total size,archive,must,yes,no,S09

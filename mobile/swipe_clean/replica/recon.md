@@ -91,6 +91,24 @@ F07 刪除後反悔
     edge：iOS 不提供 API 讓 App 從「最近刪除」還原，只能請使用者自己去照片 App
 ```
 
+## 新增（不是 Picnic 的功能）
+
+使用者在規劃階段加的需求，2026-11-12：
+
+```
+F08 往上滑隱藏照片
+    S06 往上滑 -> （第一次）S16 說明／警告 -> 照片進隱藏區
+    iOS：系統「已隱藏」相簿；Android：App 內上鎖相簿（檔案搬進 App 私有空間）
+
+F09 取消隱藏
+    S15 解鎖 -> 選取 -> 搬回相簿
+```
+
+| ID | screen | purpose |
+| --- | --- | --- |
+| S15 | 上鎖相簿／隱藏照片 | 解鎖後檢視隱藏的照片、搬回相簿、全部搬回 |
+| S16 | 隱藏說明 | 第一次往上滑時說明；Android 警告「移除 App 會刪掉上鎖相簿的照片」 |
+
 ## Components
 
 | component | variants | states | used on |
@@ -159,7 +177,7 @@ Relationships：Section 1-n PhotoAsset；PhotoAsset 1-0..1 Decision；Decision(a
 
 ## Feature matrix
 
-見 `features.csv`。must：13、should：9、could：7、skip：5。
+見 `features.csv`。must：18（含新增的隱藏功能 5 項）、should：9、could：7、skip：5。
 
 ## 公開資料互相矛盾的地方（定位機會）
 
