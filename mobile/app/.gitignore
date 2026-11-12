@@ -45,3 +45,7 @@ dist-web/
 secrets/
 *.keystore
 *.jks
+
+# 原生模組的 Gradle 建置輸出
+modules/*/android/build/
+modules/*/android/.cxx/
