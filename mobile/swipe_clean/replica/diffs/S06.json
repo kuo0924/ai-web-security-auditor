@@ -1,0 +1,48 @@
+{
+  "mode": "layout",
+  "original": {
+    "width": 408,
+    "height": 932
+  },
+  "clone": {
+    "width": 390,
+    "height": 844
+  },
+  "compared_at": {
+    "width": 390,
+    "height": 844
+  },
+  "height_delta_pct": -5.3,
+  "score": 14.2,
+  "verdict": "different",
+  "regions": [
+    {
+      "x": 0,
+      "y": 167,
+      "w": 401,
+      "h": 736,
+      "cells": 206,
+      "where": "middle centre"
+    },
+    {
+      "x": 0,
+      "y": 0,
+      "w": 301,
+      "h": 100,
+      "cells": 20,
+      "where": "top centre"
+    },
+    {
+      "x": 267,
+      "y": 0,
+      "w": 133,
+      "h": 100,
+      "cells": 8,
+      "where": "top right"
+    }
+  ],
+  "files": {
+    "original": "/tmp/claude-0/-home-user-ai-web-security-auditor/37905ff8-f451-57e7-8269-041b4f8a892f/scratchpad/picnic-S06-crop.png",
+    "clone": "clone-screens/S06-after-swipes.png"
+  }
+}
