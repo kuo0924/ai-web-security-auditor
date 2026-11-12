@@ -93,6 +93,12 @@
 
 ### 3.2 RevenueCat（取代「付款 webhook」）
 
+> **2026-11-12 更新（依 `fixes.md` F1、F2）**：改成**買斷制**，不做週訂閱，也**永遠不放廣告**。
+> - RevenueCat 商品改成一個 **non-consumable**（Play：一次性商品；App Store：非消耗型項目），entitlement 一樣叫 `pro`。
+> - 付費牆不放在第一次滑動之前。免費版要給多少（例如每天幾張，或第一個月份整區），由 `/replica-launch` 定價時決定。
+> - `daily_quota` 表保留，但只有在定價決定要限制免費額度時才啟用。
+> - 不接任何廣告 SDK。
+
 | call | 用途 |
 | --- | --- |
 | `Purchases.configure({ apiKey })` | **Android 和 iOS 是兩把不同的 public SDK key**，依 `Platform.OS` 選。沒有登入，用匿名 App User ID |

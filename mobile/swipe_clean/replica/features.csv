@@ -38,3 +38,11 @@ A/B price matrix (10 IAP variants),monetization,skip,yes,skip,not a feature; pic
 Picnic name / icon / copy / seasonal events,brand,skip,yes,skip,owned by Picnic Ventures / MWM; rebrand
 MWM paid user acquisition network,growth,skip,yes,skip,their ad spend and publishing network are not part of the product
 Cloud backup / upload of photos,privacy,skip,no,skip,original is on-device only; keep it that way
+No ads ever (no ad SDK) and say so in store listing,positioning,must,no,no,F1 fixes.md: ads 364 reviews / 4 apps; Slider 63 praise for no ads
+One-time purchase instead of weekly subscription; no paywall before first swipe,monetization,must,no,no,F2 fixes.md: pricing 263 / weekly 114 / billing 70; details in replica-launch
+Save after every swipe and resume exactly where the user left off,swipe,must,no,no,F3 fixes.md: progress lost 15 reviews / 4 apps
+Show delete result (N photos / ~X GB moved to system trash) and explain failures,delete,must,no,no,F4 fixes.md: can't delete 10 / space not freed 10
+Keep month sections simple (one way to browse),sections,should,no,no,F5 fixes.md: organize 105; Slidebox redesign complaints
+Similar-photo compare: auto-advance to next group and no accidental swipe,similar,should,no,no,F6 fixes.md: Picnic compare bugs
+Live Photos do not autoplay (long-press to play),swipe,should,no,no,F7 fixes.md: Slidebox reviews
+Ask for rating only after first successful cleanup,feedback,could,no,no,F8 fixes.md: 6 reviews (thin) but free to fix
