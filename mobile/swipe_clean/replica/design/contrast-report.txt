@@ -1,0 +1,57 @@
+===== light =====
+  AAA   18.47:1  text                     on bg                   
+  AAA   16.93:1  text                     on surface              
+  AAA   18.47:1  text                     on surface-raised       
+  AA     6.75:1  text-muted               on bg                   
+  AA     6.19:1  text-muted               on surface              
+  AA     6.75:1  text-muted               on surface-raised       
+  AA     5.52:1  on-accent                on accent               
+  AA     5.52:1  accent                   on bg                   
+  AA     5.06:1  accent                   on surface              
+  AA     5.88:1  on-keep                  on keep                 
+  AA     5.88:1  keep                     on bg                   
+  AA     5.39:1  keep                     on surface              
+  AA     5.63:1  on-delete                on delete               
+  AA     5.63:1  delete                   on bg                   
+  AA     5.16:1  delete                   on surface              
+  AA     6.72:1  on-hide                  on hide                 
+  AA     6.72:1  hide                     on bg                   
+  AA     6.16:1  hide                     on surface              
+  AA     5.93:1  warning                  on bg                   
+  AA     5.43:1  warning                  on surface              
+  AAA    5.63:1  on-badge                 on badge                large
+  AAA   21.00:1  on-photo                 on photo-backdrop       
+  PASS   3.88:1  border-input             on bg                   ui
+  PASS   3.56:1  border-input             on surface              ui
+  PASS   5.52:1  accent                   on bg                   ui
+
+  25 pairs, 0 failing AA
+===== dark =====
+  AAA   17.41:1  text                     on bg                   
+  AAA   15.49:1  text                     on surface              
+  AAA   13.78:1  text                     on surface-raised       
+  AAA    8.19:1  text-muted               on bg                   
+  AAA    7.28:1  text-muted               on surface              
+  AA     6.48:1  text-muted               on surface-raised       
+  AAA    8.39:1  on-accent                on accent               
+  AAA    8.39:1  accent                   on bg                   
+  AAA    7.46:1  accent                   on surface              
+  AAA    8.93:1  on-keep                  on keep                 
+  AAA    9.07:1  keep                     on bg                   
+  AAA    8.07:1  keep                     on surface              
+  AAA    7.28:1  on-delete                on delete               
+  AAA    7.12:1  delete                   on bg                   
+  AA     6.33:1  delete                   on surface              
+  AAA    8.06:1  on-hide                  on hide                 
+  AAA    8.15:1  hide                     on bg                   
+  AAA    7.25:1  hide                     on surface              
+  AAA   10.71:1  warning                  on bg                   
+  AAA    9.52:1  warning                  on surface              
+  AAA    7.28:1  on-badge                 on badge                large
+  AAA   21.00:1  on-photo                 on photo-backdrop       
+  PASS   5.14:1  border-input             on bg                   ui
+  PASS   4.57:1  border-input             on surface              ui
+  PASS   8.39:1  accent                   on bg                   ui
+
+  25 pairs, 0 failing AA
+exit=0
