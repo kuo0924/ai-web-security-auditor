@@ -1,0 +1,24 @@
+{
+  "avoid": [
+    "Picnic",
+    "Picnic Photos",
+    "Picnic Ventures",
+    "Super Picnic",
+    "Swipewipe",
+    "MWM"
+  ],
+  "_note": "上架前提：listing 提到的『相似照片』『上鎖相簿』要先做完才能送審（目前垂直切片還沒有）。",
+  "google_play": {
+    "title": "Onceover: Photo Cleanup",
+    "short_description": "Swipe to keep or toss photos. Undo for 30 days. No ads. Pay once.",
+    "full_description": "Thousands of photos and no energy to sort them? Onceover turns your camera roll into one quick decision at a time.\n\nHow it works\n- Swipe right to keep\n- Swipe left to set it aside in the Archive\n- Swipe up to move it into a locked album\n- Clear the Archive in one go. Android asks once.\n\nWhy Onceover\n- No ads. Nothing pops up while you swipe.\n- Pay once. No weekly plan, no auto-renewal.\n- Changed your mind? Photos go to your phone's trash first, recoverable for 30 days.\n- Every swipe is saved. Leave and come back right where you stopped.\n- Compare similar shots side by side and keep the best one.\n- Your photos never leave your phone. No account, no uploads.\n\nSort your first 1,000 photos with every feature. Unlock the full version once to finish the rest.\n\nThe 30-day phone trash needs Android 11 or later. On Android 10 and earlier, Onceover warns you before deleting permanently."
+  },
+  "app_store": {
+    "name": "Onceover: Photo Cleanup",
+    "subtitle": "Swipe to sort. 30-day undo",
+    "promotional_text": "No ads. Pay once. Swipe right to keep, left to toss, up to hide. Your photos never leave your iPhone.",
+    "description": "Thousands of photos and no energy to sort them? Onceover turns your camera roll into one quick decision at a time.\n\nHow it works\n- Swipe right to keep\n- Swipe left to set it aside in the Archive\n- Swipe up to move it to your Hidden album\n- Clear the Archive in one go. Photos go to Recently Deleted for 30 days.\n\nWhy Onceover\n- No ads.\n- Pay once. Not a subscription.\n- Every swipe is saved. Pick up where you left off.\n- Compare similar shots side by side and keep the best one.\n- No account. No uploads.\n\nSort your first 1,000 photos. Unlock the full version once to finish the rest.",
+    "keywords": "cleaner,camera roll,storage,duplicate,similar,declutter,gallery,hidden,album,delete,space",
+    "whats_new": "First release."
+  }
+}

@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="zh-Hant-TW">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Onceover 一次清：照片整理，付一次就好</title>
+<meta name="description" content="往右留、往左刪、往上藏。沒有廣告，付一次就好，照片從不離開你的手機。">
+<style>
+:root {
+  --bg: #FFFFFF;
+  --surface: #F4F5F7;
+  --surface-raised: #FFFFFF;
+  --border: #E2E5EA;
+  --border-input: #7A828E;
+  --text: #111418;
+  --text-muted: #545C69;
+  --accent: #A3216F;
+  --on-accent: #FFFFFF;
+  --keep: #1B7340;
+  --on-keep: #FFFFFF;
+  --delete: #C42B2B;
+  --on-delete: #FFFFFF;
+  --hide: #5B3FD6;
+  --on-hide: #FFFFFF;
+  --warning: #8A5A00;
+  --badge: #C42B2B;
+  --on-badge: #FFFFFF;
+  --photo-backdrop: #000000;
+  --on-photo: #FFFFFF;
+  color-scheme: light dark;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+  --bg: #0E0F12;
+  --surface: #1A1C21;
+  --surface-raised: #23262C;
+  --border: #2E3238;
+  --border-input: #7D8590;
+  --text: #F3F4F6;
+  --text-muted: #A3AAB5;
+  --accent: #F38BC6;
+  --on-accent: #1A0612;
+  --keep: #4CC97A;
+  --on-keep: #06140C;
+  --delete: #FF7070;
+  --on-delete: #1A0606;
+  --hide: #AE9BFF;
+  --on-hide: #120A2E;
+  --warning: #F2B84B;
+  --badge: #FF7070;
+  --on-badge: #1A0606;
+  --photo-backdrop: #000000;
+  --on-photo: #FFFFFF;
+  }
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--bg); color: var(--text); font: 17px/1.6 system-ui, -apple-system, "PingFang TC", "Noto Sans TC", "Microsoft JhengHei", sans-serif; }
+a { color: var(--accent); }
+.wrap { max-width: 1080px; margin: 0 auto; padding: 0 16px; }
+header { display: flex; justify-content: space-between; align-items: center; padding: 16px 0; }
+.logo { font-weight: 800; font-size: 20px; letter-spacing: -.01em; }
+.logo span { color: var(--accent); }
+.hero { display: grid; grid-template-columns: 1.1fr .9fr; gap: 48px; align-items: center; padding: 40px 0 64px; }
+h1 { font-size: clamp(34px, 6vw, 56px); line-height: 1.1; margin: 0 0 16px; letter-spacing: -.02em; }
+.lead { font-size: 19px; color: var(--text-muted); margin: 0 0 28px; }
+.btn { display: inline-flex; align-items: center; gap: 8px; min-height: 52px; padding: 0 28px; border-radius: 999px; background: var(--accent); color: var(--on-accent); font-weight: 700; text-decoration: none; }
+.btn:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+.btn.secondary { background: var(--surface); color: var(--text); border: 1px solid var(--border); }
+.note { font-size: 14px; color: var(--text-muted); margin-top: 12px; }
+.phone { justify-self: center; width: min(320px, 80vw); border-radius: 36px; overflow: hidden; border: 8px solid var(--surface-raised); box-shadow: 0 20px 50px rgba(0,0,0,.25); background: #000; }
+.phone img { display: block; width: 100%; height: auto; }
+section { padding: 56px 0; border-top: 1px solid var(--border); }
+h2 { font-size: clamp(26px, 4vw, 36px); line-height: 1.2; margin: 0 0 24px; letter-spacing: -.01em; }
+.problems { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.card { background: var(--surface); border-radius: 20px; padding: 24px; }
+.card h3 { margin: 0 0 8px; font-size: 19px; }
+.card p { margin: 0; color: var(--text-muted); }
+.steps { counter-reset: s; display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; padding: 0; margin: 0; list-style: none; }
+.steps li { counter-increment: s; }
+.steps li::before { content: counter(s); display: inline-grid; place-items: center; width: 36px; height: 36px; border-radius: 50%; background: var(--accent); color: var(--on-accent); font-weight: 800; margin-bottom: 12px; }
+.dir { font-weight: 700; }
+.keep { color: var(--keep); } .del { color: var(--delete); } .hide { color: var(--hide); }
+.features { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+.soon { display: inline-block; font-size: 12px; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: var(--border); color: var(--text-muted); margin-left: 6px; vertical-align: middle; }
+.shots { display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; margin-top: 24px; }
+.shots .phone { width: 240px; }
+table { width: 100%; border-collapse: separate; border-spacing: 16px 0; }
+.price { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.price .card.main { outline: 2px solid var(--accent); }
+.amount { font-size: 36px; font-weight: 800; margin: 8px 0; color: var(--text); }
+details { background: var(--surface); border-radius: 16px; padding: 16px 20px; margin-bottom: 12px; }
+summary { cursor: pointer; font-weight: 700; }
+summary:focus-visible { outline: 3px solid var(--accent); outline-offset: 4px; border-radius: 6px; }
+details p { color: var(--text-muted); margin: 12px 0 0; }
+.cta { text-align: center; }
+footer { padding: 32px 0 48px; color: var(--text-muted); font-size: 14px; border-top: 1px solid var(--border); }
+@media (max-width: 760px) {
+  .hero, .problems, .steps, .features, .price { grid-template-columns: 1fr; }
+  .hero { gap: 32px; padding-top: 16px; }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header><div class="logo">Once<span>over</span> 一次清</div><a href="#price">價格</a></header>
+
+  <main>
+  <div class="hero">
+    <div>
+      <h1>相簿清乾淨，<br>付一次就好。</h1>
+      <p class="lead">往右留、往左刪、往上藏。沒有廣告，照片從不離開你的手機。</p>
+      <a class="btn" href="#waitlist">加入候補名單</a>
+      <p class="note">即將在 Google Play 推出，之後上 App Store。</p>
+    </div>
+    <div class="phone"><img src="img/swipe.png" alt="Onceover 的滑動整理畫面：一張照片卡片，下方有刪除、隱藏、復原、保留四個按鈕" width="390" height="844"></div>
+  </div>
+
+  <section aria-labelledby="problem">
+    <h2 id="problem">整理照片，不該這麼累</h2>
+    <div class="problems">
+      <div class="card"><h3>滑到一半，廣告跳出來</h3><p>想刪幾張照片，卻要先看完一段廣告，好不容易進入狀況又被打斷。</p></div>
+      <div class="card"><h3>清個相簿，要每週付費</h3><p>只是想把手機清乾淨，卻被要求訂閱，還得記得取消，免得一直被扣款。</p></div>
+    </div>
+  </section>
+
+  <section aria-labelledby="how">
+    <h2 id="how">三步，清完一個月份</h2>
+    <ol class="steps">
+      <li class="card"><h3>一張一張滑</h3><p><span class="dir keep">往右</span>留、<span class="dir del">往左</span>放進封存區、<span class="dir hide">往上</span>藏起來。</p></li>
+      <li class="card"><h3>確認封存區</h3><p>看一眼要刪的照片，確認後一次移除，系統只問一次。</p></li>
+      <li class="card"><h3>30 天後悔期</h3><p>照片先進手機的垃圾桶，30 天內都能救回。</p></li>
+    </ol>
+    <div class="shots">
+      <div class="phone"><img src="img/confirm.png" alt="移除前的確認：說明照片會進手機垃圾桶，30 天內都能救回" width="390" height="844" loading="lazy"></div>
+      <div class="phone"><img src="img/freed.png" alt="移除完成：顯示大約釋放的空間和移除張數" width="390" height="844" loading="lazy"></div>
+    </div>
+  </section>
+
+  <section aria-labelledby="why">
+    <h2 id="why">為什麼選 Onceover</h2>
+    <div class="features">
+      <div class="card"><h3>沒有廣告</h3><p>滑到一半不會被打斷，現在不會，以後也不會。</p></div>
+      <div class="card"><h3>付一次就好</h3><p>不是訂閱，不會自動續訂，不用記得取消。</p></div>
+      <div class="card"><h3>每一滑都存檔</h3><p>離開再回來，從上次那張接著滑。</p></div>
+      <div class="card"><h3>刪了什麼看得到</h3><p>移除幾張、大約多少空間、多久內能救回，都寫清楚。</p></div>
+      <div class="card"><h3>相似照片並排比<span class="soon">開發中</span></h3><p>連拍、重拍的照片放在一起，留下最好的那張。</p></div>
+      <div class="card"><h3>往上滑藏起來<span class="soon">開發中</span></h3><p>不想刪、也不想被看到的照片，收進上鎖相簿。</p></div>
+    </div>
+  </section>
+
+  <section id="price" aria-labelledby="price-h">
+    <h2 id="price-h">價格</h2>
+    <div class="price">
+      <div class="card"><h3>免費</h3><div class="amount">NT$0</div><p>前 1,000 張照片，全部功能，沒有廣告，沒有每日次數限制。</p></div>
+      <div class="card main"><h3>完整版</h3><div class="amount">NT$290</div><p>一次買斷，照片張數不限。同一個帳號換手機也能還原。</p></div>
+    </div>
+  </section>
+
+  <section aria-labelledby="faq">
+    <h2 id="faq">常見問題</h2>
+    <details><summary>刪錯了怎麼辦？</summary><p>Android 11 以上會先移到手機的垃圾桶，30 天內可以救回；iPhone 會進「照片」App 的「最近刪除」。</p></details>
+    <details><summary>會上傳我的照片嗎？</summary><p>不會。不需要帳號，我們也沒有伺服器，整理全部在你的手機上完成。</p></details>
+    <details><summary>為什麼要付錢？</summary><p>我們不放廣告、不賣資料，所以用一次買斷來維持開發。</p></details>
+    <details><summary>為什麼刪了空間沒有馬上變多？</summary><p>照片會在垃圾桶放 30 天，讓你有機會反悔。垃圾桶清空後，空間才會真正釋放。</p></details>
+    <details><summary>換手機之後呢？</summary><p>用同一個 Google 或 Apple 帳號，在 App 裡按「還原購買」就好。</p></details>
+    <details><summary>舊手機能用嗎？</summary><p>Android 10 以下沒有手機垃圾桶，刪除前會先警告，確認後才永久刪除。</p></details>
+  </section>
+
+  <section id="waitlist" class="cta" aria-labelledby="cta">
+    <h2 id="cta">今天先清一個月份就好。</h2>
+    <a class="btn" href="#">加入候補名單（連結待設定）</a>
+  </section>
+  </main>
+
+  <footer>Onceover 一次清 · <a href="#">隱私權政策</a> · <a href="#">聯絡我們</a></footer>
+</div>
+</body>
+</html>
