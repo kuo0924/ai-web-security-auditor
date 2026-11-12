@@ -9,6 +9,7 @@
 | 2026-11-12 | S09 封存區 | done | 格狀清單上方顯示總大小；長按預覽 | — |
 | 2026-11-12 | S10 App 內確認 → 系統確認 | done（Android 用自訂模組 `createTrashRequest`） | 實機確認系統視窗只跳一次 | Expo 的 `Asset.delete` 在 Android 是永久刪除，所以自己寫 `modules/photo-actions` |
 | 2026-11-12 | S11 釋放空間 | partial | 數字跑動動畫 | 寫「約 X」：iOS 拿不到檔案大小，用解析度估算 |
+| 2026-11-12 | Android release APK | done（未實機執行） | 實機測試 | 需要 JDK 17、`repo.reactnative.dev`；自己的原生模組少宣告 `androidx.activity`；相依套件帶進多餘權限（已擋） |
 | — | 往上滑隱藏 | partial | 只做了手勢和記錄（`hidden_items.status = 'hiding'`）；Android 上鎖相簿、iOS `isHidden` 都還沒做 | — |
 | — | S05、S07、S08、S12–S16 | not started | 相似照片、月份分區、付費牆、onboarding、上鎖相簿 | — |
 

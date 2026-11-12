@@ -16,7 +16,7 @@ Date：2026-11-12　Commit：見 git log　**Go from user：not yet**（prefligh
 | **parity：must-have 全部完成** | ❌ **8 / 13**，功能分數 46.1 | 缺：相似照片偵測、比較畫面、封存區總大小、iOS 實機刪除驗證、縮圖預載 |
 | 品牌 sweep | ✅ `app/`、`site/` 都 Clean（exit 0） | 第一次跑抓到 tokens.json 的備註，已修 |
 | 商店文字 | ✅ 中文、英文 listing 都 0 錯誤 0 警告 | `launch/listing.*.json` |
-| 正式版建置 | ⏳ 見下方「Android 建置」 | |
+| 正式版建置 | ✅ Android release APK 建置成功（arm64-v8a＋x86_64，62 MB，除錯簽章） | 見下方 |
 | 隱私權政策、條款上線，列出所有處理者 | ❌ 只有草稿（`launch/privacy-policy.md`），還沒上線；處理者：Google Play、Apple、RevenueCat（＋Sentry 如果加入） | |
 | 刪除帳號 | ✅ 不適用：沒有帳號。設定頁要提供「清除所有 App 資料」（**還沒做**） | |
 | favicon、標題、OG 圖、App icon 是自己的 | ❌ App icon、啟動圖、favicon 還是 Expo 預設圖；網站沒有 OG 圖 | 等 logo（`brand.md` 的 brief） |
@@ -56,7 +56,10 @@ Date：2026-11-12　Commit：見 git log　**Go from user：not yet**（prefligh
   - React Native 的 Gradle 外掛需要 **JDK 17**（機器上只有 21）→ 用 apt 安裝
   - Maven Central 429（請求太多）→ 重試
   - `repo.reactnative.dev` 被擋 → 加進網路允許清單
-- 結果：**（建置完成後填入）**
+  - 我寫的原生模組少宣告 `androidx.activity` → 編譯抓到、已修
+- 結果：**BUILD SUCCESSFUL**。`aapt2` 檢查：套件 `tw.onceover.app`、名稱 Onceover、含 `createTrashRequest`。
+- 權限：把相依套件自動帶進來的 `READ_MEDIA_VIDEO`（v1 只處理照片，宣告了要多寫 Play 聲明）和
+  `SYSTEM_ALERT_WINDOW`（開發用的懸浮視窗權限，正式版不該有）加進 `blockedPermissions` 擋掉，重建後確認已移除。
 - 這個 APK 用的是**除錯簽章**，可以自己安裝測試，**不能上傳 Play**。正式版要用 EAS 或你自己的上傳金鑰簽章。
 
 ## 你要做的事（依順序）
