@@ -10,7 +10,7 @@ import 'swipe_screen.dart' show showSystemTrashResult;
 /// App 垃圾桶。
 ///
 /// 分兩區：
-/// 1.「待移除」：右滑刪除後先放這裡，系統相簿裡照片還在，可以直接還原。
+/// 1.「待移除」：左滑刪除後先放這裡，系統相簿裡照片還在，可以直接還原。
 /// 2.「已在手機垃圾桶」：已經送到系統的垃圾桶；Android 11+ 可以從這裡救回，
 ///    iOS 要到「照片」App →「最近刪除」救回。
 class TrashScreen extends StatefulWidget {

@@ -130,7 +130,7 @@ class AppStore extends ChangeNotifier {
 
   // ───────────────────────── 滑動 ─────────────────────────
 
-  /// 左滑：保存。
+  /// 右滑：保存。
   Future<void> keep(AssetEntity asset) async {
     queue.remove(asset);
     keptIds.add(asset.id);
@@ -141,7 +141,7 @@ class AppStore extends ChangeNotifier {
     await ensureQueue();
   }
 
-  /// 右滑：刪除 → 先進 App 垃圾桶。
+  /// 左滑：刪除 → 先進 App 垃圾桶。
   Future<void> delete(AssetEntity asset) async {
     queue.remove(asset);
     _history.add(SwipeRecord(asset.id, SwipeAction.delete));

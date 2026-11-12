@@ -6,7 +6,7 @@ import 'package:photo_manager_image_provider/photo_manager_image_provider.dart';
 
 /// 可以拖曳的照片卡片。
 ///
-/// 往右滑 → [onSwipeRight]（刪除），往左滑 → [onSwipeLeft]（保存）。
+/// 往右滑 → [onSwipeRight]（保存），往左滑 → [onSwipeLeft]（刪除）。
 class SwipeCard extends StatefulWidget {
   const SwipeCard({
     super.key,
@@ -131,23 +131,23 @@ class SwipeCardState extends State<SwipeCard>
                   ),
                 ),
               ),
-              // 右滑：紅色「刪除」
+              // 右滑：綠色「保存」
               if (progress > 0)
                 _Stamp(
                   opacity: progress,
-                  color: Colors.redAccent,
-                  label: '刪除',
-                  icon: Icons.delete_outline,
-                  alignment: Alignment.topLeft,
-                  angle: -0.3,
-                ),
-              // 左滑：綠色「保存」
-              if (progress < 0)
-                _Stamp(
-                  opacity: -progress,
                   color: Colors.greenAccent.shade700,
                   label: '保存',
                   icon: Icons.favorite_border,
+                  alignment: Alignment.topLeft,
+                  angle: -0.3,
+                ),
+              // 左滑：紅色「刪除」
+              if (progress < 0)
+                _Stamp(
+                  opacity: -progress,
+                  color: Colors.redAccent,
+                  label: '刪除',
+                  icon: Icons.delete_outline,
                   alignment: Alignment.topRight,
                   angle: 0.3,
                 ),

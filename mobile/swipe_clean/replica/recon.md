@@ -216,7 +216,6 @@ Relationships：Section 1-n PhotoAsset；PhotoAsset 1-0..1 Decision；Decision(a
 
 ## 和現有原型（mobile/swipe_clean）的差異
 
-- **滑動方向相反**：Picnic 是右滑保留、左滑封存（和 Tinder 一樣）。現有原型照你最初的要求做成右滑刪除、左滑保存。
-  要賣給一般使用者，建議改成 Picnic／Tinder 的方向，因為大家已經習慣；但這要你決定。
+- **滑動方向**：已定案為右滑保留、左滑刪除（2026-11-12），和 Picnic／Tinder 一致。原型也已經改成這個方向。
 - 原型已經有：App 內垃圾桶（＝封存區）、批次移到系統垃圾桶、復原上一步、保存清單。
 - 原型還沒有：相似照片、依月份分區、空間釋放統計、每日額度與訂閱、Live Photo／影片支援。

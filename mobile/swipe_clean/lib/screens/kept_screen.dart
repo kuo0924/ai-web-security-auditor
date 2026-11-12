@@ -4,7 +4,7 @@ import 'package:photo_manager_image_provider/photo_manager_image_provider.dart';
 
 import '../app_store.dart';
 
-/// 左滑保存過的照片。照片本來就在相簿裡，這裡只是記住「已看過、要留」，
+/// 右滑保存過的照片。照片本來就在相簿裡，這裡只是記住「已看過、要留」，
 /// 之後就不會再出現在滑動清單。長按可以取消保存，讓它重新出現。
 class KeptScreen extends StatelessWidget {
   const KeptScreen({super.key, required this.store});
@@ -46,7 +46,7 @@ class KeptScreen extends StatelessWidget {
             ],
           ),
           body: ids.isEmpty
-              ? const Center(child: Text('還沒有保存的照片\n在主畫面往左滑就會保存', textAlign: TextAlign.center))
+              ? const Center(child: Text('還沒有保存的照片\n在主畫面往右滑就會保存', textAlign: TextAlign.center))
               : GridView.builder(
                   padding: const EdgeInsets.all(8),
                   gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(

@@ -1,6 +1,6 @@
 feature,area,priority,original,clone,notes
 Request photo library permission incl. limited access,onboarding,must,yes,no,S02; handle denied + limited states
-Swipe right to keep / left to archive with live overlay,swipe,must,yes,no,S06; Picnic direction is right=keep (prototype is reversed)
+Swipe right to keep / left to archive with live overlay,swipe,must,yes,no,S06; decided 2026-11-12: right=keep / left=delete (same as Picnic)
 Card stack with next photo preloaded,swipe,must,yes,no,S06; smooth with iCloud thumbnails
 Tap buttons as alternative to swiping,swipe,must,yes,no,accessibility; also prototype has it
 Swipe up to hide photo,hide,must,no,no,our addition (not in Picnic); iOS system Hidden album / Android in-app locked vault

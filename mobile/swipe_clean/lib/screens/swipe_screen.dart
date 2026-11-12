@@ -104,7 +104,7 @@ class _SwipeScreenState extends State<SwipeScreen> {
         Padding(
           padding: const EdgeInsets.symmetric(vertical: 6),
           child: Text(
-            '← 左滑保存　　右滑刪除 →',
+            '← 左滑刪除　　右滑保存 →',
             style: Theme.of(context).textTheme.bodySmall,
           ),
         ),
@@ -145,8 +145,8 @@ class _SwipeScreenState extends State<SwipeScreen> {
         SwipeCard(
           key: _topCard,
           asset: top,
-          onSwipeRight: () => _delete(top),
-          onSwipeLeft: () => store.keep(top),
+          onSwipeRight: () => store.keep(top),
+          onSwipeLeft: () => _delete(top),
         ),
       ],
     );
@@ -160,9 +160,9 @@ class _SwipeScreenState extends State<SwipeScreen> {
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: [
           _RoundButton(
-            icon: Icons.favorite,
-            color: Colors.green,
-            label: '保存',
+            icon: Icons.delete,
+            color: Colors.red,
+            label: '刪除',
             onTap: hasCard ? () => _topCard.currentState?.swipeLeft() : null,
           ),
           _RoundButton(
@@ -173,9 +173,9 @@ class _SwipeScreenState extends State<SwipeScreen> {
             onTap: store.canUndo ? store.undo : null,
           ),
           _RoundButton(
-            icon: Icons.delete,
-            color: Colors.red,
-            label: '刪除',
+            icon: Icons.favorite,
+            color: Colors.green,
+            label: '保存',
             onTap: hasCard ? () => _topCard.currentState?.swipeRight() : null,
           ),
         ],
