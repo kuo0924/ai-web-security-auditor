@@ -49,7 +49,7 @@
     "test": "jest",
     "export:web": "expo export -p web",
     "sync": "node scripts/sync-tokens.mjs",
-    "e2e:web": "expo export -p web --output-dir dist-web && node e2e/slice.web.js dist-web ../swipe_clean/replica/clone-screens"
+    "e2e:web": "expo export -p web --output-dir dist-web && node e2e/slice.web.js dist-web ../swipe_clean/replica/clone-screens && node e2e/similar.web.js dist-web ../swipe_clean/replica/clone-screens"
   },
   "private": true,
   "jest": {

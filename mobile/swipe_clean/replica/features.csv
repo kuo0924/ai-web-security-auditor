@@ -15,8 +15,8 @@ Restore photo from archive back to unsorted,undo,must,yes,yes,S09 'waits safely 
 Empty archive in one tap via iOS delete (goes to Recently Deleted),delete,must,yes,partial,S09 -> S10 system alert -> S11 | clone: Android createTrashRequest built; iOS path written (expo-media-library delete) but not run on iPhone
 Handle user tapping Don't Allow in system delete alert,delete,must,yes,yes,items stay archived | clone: items stay archived; tested with fake + reconcile
 Explain Recently Deleted 30-day recovery after deletion,delete,must,yes,yes,F07; iOS has no API to restore from Recently Deleted | clone: S10 confirm + S11 result copy
-Detect groups of similar / burst photos on-device,similar,must,unknown,no,evidence only from reviews ('compare feature'); Vision feature prints
-Compare view: pick best of a similar group and archive the rest,similar,must,unknown,no,S08 guess
+Detect groups of similar / burst photos on-device,similar,must,unknown,yes,"evidence only from reviews ('compare feature'); Vision feature prints | clone: pHash+dHash in JS, 10-min window + union-find, exact dups any time; background scan with pause; tested on synthetic scenes (190 different pairs, 0 false matches); real-photo thresholds need device tuning"
+Compare view: pick best of a similar group and archive the rest,similar,must,unknown,yes,"S08 guess | clone: S08 side by side, suggested best (highest MP, then latest), keep ≥1, keep-all dismisses forever, later"
 Sort library into sections by month with progress,sections,should,yes,no,S05 review 'finish a month or section'
 Storage freed celebration with GB counter,feedback,should,yes,partial,S11 ScreensDesign 03:08 | clone: S11 shows ~GB; no count-up animation yet
 Section completed screen,feedback,should,yes,no,S12
@@ -43,6 +43,6 @@ One-time purchase instead of weekly subscription; no paywall before first swipe,
 Save after every swipe and resume exactly where the user left off,swipe,must,no,yes,F3 fixes.md: progress lost 15 reviews / 4 apps | clone: SQLite per swipe; test: reopen resumes at next photo
 Show delete result (N photos / ~X GB moved to system trash) and explain failures,delete,must,no,yes,F4 fixes.md: can't delete 10 / space not freed 10 | clone: S11 + partial/cancel messages
 Keep month sections simple (one way to browse),sections,should,no,no,F5 fixes.md: organize 105; Slidebox redesign complaints
-Similar-photo compare: auto-advance to next group and no accidental swipe,similar,should,no,no,F6 fixes.md: Picnic compare bugs
+Similar-photo compare: auto-advance to next group and no accidental swipe,similar,should,no,yes,F6 fixes.md: Picnic compare bugs | clone: S08 has no swipe gesture; next group appears after apply/keep-all
 Live Photos do not autoplay (long-press to play),swipe,should,no,no,F7 fixes.md: Slidebox reviews
 Ask for rating only after first successful cleanup,feedback,could,no,no,F8 fixes.md: 6 reviews (thin) but free to fix

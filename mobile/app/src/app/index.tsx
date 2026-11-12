@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, View } from 'react-native';
+import { ActivityIndicator, Pressable, View } from 'react-native';
 import { Stack, router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import { sectionLabel, sectionKey } from '../core/format';
 import type { Decision } from '../core/types';
-import { useSession } from '../state/AppProvider';
+import { useSession, useSimilar } from '../state/AppProvider';
 import { useTheme } from '../theme';
-import { Badge, Button, EmptyState, IconButton, Text } from '../ui';
+import { Badge, Button, EmptyState, Icon, IconButton, Text } from '../ui';
 import { DeniedView, PartialBanner } from '../features/swipe/PermissionViews';
 import { NextCard, SwipeCard, type SwipeCardHandle } from '../features/swipe/SwipeCard';
 
@@ -19,6 +19,7 @@ export default function SwipeScreen() {
   const t = useTheme('dark');
   const insets = useSafeAreaInsets();
   const { ctrl, state } = useSession();
+  const { state: sim } = useSimilar();
   const card = useRef<SwipeCardHandle>(null);
   const [toast, setToast] = useState<Decision | null>(null);
 
@@ -76,6 +77,18 @@ export default function SwipeScreen() {
         </View>
         <View>
           <IconButton
+            icon="compare"
+            variant="overlay"
+            scheme="dark"
+            label={`相似照片，${sim?.groups.length ?? 0} 組`}
+            onPress={() => router.push('/similar')}
+          />
+          <View style={{ position: 'absolute', top: -4, right: -6 }} pointerEvents="none">
+            <Badge count={sim?.groups.length ?? 0} scheme="dark" />
+          </View>
+        </View>
+        <View>
+          <IconButton
             icon="trash-bin"
             variant="overlay"
             scheme="dark"
@@ -107,6 +120,19 @@ export default function SwipeScreen() {
               onDecide={onDecide}
               onThreshold={() => void Haptics.selectionAsync().catch(() => {})}
             />
+            {sim?.groupOf[top.id] ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="這張有相似的照片，打開比較"
+                onPress={() => router.push({ pathname: '/similar', params: { group: sim.groupOf[top.id] } })}
+                style={{ position: 'absolute', bottom: t.space[3], alignSelf: 'center', flexDirection: 'row', alignItems: 'center', gap: t.space[2], backgroundColor: 'rgba(0,0,0,0.6)', borderRadius: t.radius.pill, paddingHorizontal: t.space[4], paddingVertical: t.space[2] }}
+              >
+                <Icon name="compare" size={16} color="on-photo" scheme="dark" />
+                <Text variant="footnote" scheme="dark" color="on-photo">
+                  有 {sim.groups.find((g) => g.id === sim.groupOf[top.id])?.members.length ?? 0} 張相似 · 比較
+                </Text>
+              </Pressable>
+            ) : null}
           </>
         ) : (
           <View style={{ flex: 1, justifyContent: 'center' }}>

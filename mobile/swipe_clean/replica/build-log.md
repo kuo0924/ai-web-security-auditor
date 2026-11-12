@@ -10,14 +10,15 @@
 | 2026-11-12 | S10 App 內確認 → 系統確認 | done（Android 用自訂模組 `createTrashRequest`） | 實機確認系統視窗只跳一次 | Expo 的 `Asset.delete` 在 Android 是永久刪除，所以自己寫 `modules/photo-actions` |
 | 2026-11-12 | S11 釋放空間 | partial | 數字跑動動畫 | 寫「約 X」：iOS 拿不到檔案大小，用解析度估算 |
 | 2026-11-12 | Android release APK | done（未實機執行） | 實機測試 | 需要 JDK 17、`repo.reactnative.dev`；自己的原生模組少宣告 `androidx.activity`；相依套件帶進多餘權限（已擋） |
+| 2026-11-12 | **S08 相似照片**：偵測＋比較畫面 | done（web＋單元測試）／**實機待驗證** | 門檻要用真照片調；iCloud 照片的分析速度與流量 | 測試資料的合成場景每 80 個 seed 重複，造成「完全相同的圖」被正確分組；改用 mulberry32 產生版面 |
 | — | 往上滑隱藏 | partial | 只做了手勢和記錄（`hidden_items.status = 'hiding'`）；Android 上鎖相簿、iOS `isHidden` 都還沒做 | — |
-| — | S05、S07、S08、S12–S16 | not started | 相似照片、月份分區、付費牆、onboarding、上鎖相簿 | — |
+| — | S05、S07、S12–S16 | not started | 月份分區、付費牆、onboarding、上鎖相簿 | — |
 
 ## 測試
 
-- Jest **35 個**（`npm test`），包含 3 個兩萬張照片的規模測試。資料層用 Node 內建的 `node:sqlite` 跑**跟 App 一樣的 `schema.sql`**，不是 mock。
+- Jest **57 個**（`npm test`），包含 3 個兩萬張照片的規模測試、14 個雜湊／分組、8 個相似照片流程。資料層用 Node 內建的 `node:sqlite` 跑**跟 App 一樣的 `schema.sql`**，不是 mock。
   （垂直切片的 commit 訊息寫 33，當時實際是 32；之後加了規模測試變成 35。）
-- Web e2e **14 步**（`npm run e2e:web`），用真的觸控事件、手機寬度 390×844：
+- Web e2e **14＋12 步**（`npm run e2e:web`：主流程＋相似照片），用真的觸控事件、手機寬度 390×844：
   拖曳左／右／上、短拖彈回、按鈕、復原、封存區、App 內確認、釋放空間、拒絕畫面、選更多、空封存區。
   0 個 console 錯誤。截圖在 `clone-screens/`。
 - **沒有在 Android 或 iOS 實機／模擬器上跑過**。這個環境沒有 KVM，也沒有 Mac。

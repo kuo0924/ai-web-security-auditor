@@ -21,6 +21,7 @@ export default function RootLayout() {
         >
           <Stack.Screen name="index" options={{ headerShown: false }} />
           <Stack.Screen name="archive" options={{ title: '封存區' }} />
+          <Stack.Screen name="similar" options={{ title: '相似照片' }} />
           <Stack.Screen name="design" options={{ title: '設計系統' }} />
         </Stack>
         </AppProvider>
