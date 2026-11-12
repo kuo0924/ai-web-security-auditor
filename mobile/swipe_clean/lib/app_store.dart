@@ -7,10 +7,23 @@ import 'package:photo_manager/photo_manager.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'models.dart';
+import 'permissions.dart';
 import 'system_trash.dart';
 
 /// App 的所有狀態：待整理的照片、已保存清單、App 垃圾桶。
 class AppStore extends ChangeNotifier {
+  AppStore({
+    PhotoPermissions permissions = const PhotoManagerPermissions(),
+    Future<List<AssetPathEntity>> Function()? loadPaths,
+  })  : _perms = permissions,
+        _loadPaths = loadPaths ?? _defaultLoadPaths;
+
+  static Future<List<AssetPathEntity>> _defaultLoadPaths() =>
+      PhotoManager.getAssetPathList(type: RequestType.image, onlyAll: true);
+
+  final PhotoPermissions _perms;
+  final Future<List<AssetPathEntity>> Function() _loadPaths;
+
   static const _keptKey = 'kept_ids';
   static const _trashKey = 'trash_items';
   static const _pageSize = 60;
@@ -30,7 +43,8 @@ class AppStore extends ChangeNotifier {
   bool _noMorePages = false;
   bool _loadingMore = false;
 
-  PermissionState? permission;
+  /// 目前的相簿權限；還沒檢查過是 null。
+  PhotoAccess? access;
   bool loading = true;
   int totalPhotos = 0;
 
@@ -42,6 +56,7 @@ class AppStore extends ChangeNotifier {
       DateTime.now().difference(_lastSystemOpEnd) < const Duration(seconds: 3);
 
   bool _reloading = false;
+  bool _reloadAgain = false;
 
   bool get canUndo => _history.isNotEmpty;
   List<TrashItem> get pendingTrash =>
@@ -65,37 +80,69 @@ class AppStore extends ChangeNotifier {
     await requestPermissionAndLoad();
   }
 
+  /// 第一次開啟、或使用者在拒絕畫面按「允許存取」：會跳系統權限視窗。
   Future<void> requestPermissionAndLoad() async {
     loading = true;
     notifyListeners();
-    permission = await PhotoManager.requestPermissionExtend();
-    if (permission!.hasAccess) {
-      await reload();
-    }
+    access = await _perms.request();
+    await _applyAccess();
     loading = false;
     notifyListeners();
   }
 
-  /// 重新從系統相簿讀取（例如使用者在系統相簿救回了照片）。
+  /// App 回到前景（例如從系統設定回來）：只檢查權限，**不跳視窗**，再更新畫面。
+  /// 系統確認視窗（刪除）造成的暫停／回來不算，避免操作到一半被重讀打斷。
+  Future<void> onResume() async {
+    if (access == null || loading || inSystemOp) return;
+    await reload();
+  }
+
+  Future<void> pickMore() async {
+    await _perms.pickMore();
+    await reload();
+  }
+
+  Future<void> openSettings() => _perms.openSettings();
+
+  /// 重新檢查權限，再依結果重讀相簿或清空。「重新讀取相簿」按鈕、回到前景、
+  /// 從選擇器回來都走這裡，所以權限狀態永遠是最新的。
   Future<void> reload() async {
-    if (_reloading) return;
+    if (_reloading) {
+      _reloadAgain = true; // 正在讀，讀完再來一次，確保用的是最新權限
+      return;
+    }
     _reloading = true;
     try {
-      await _reload();
+      do {
+        _reloadAgain = false;
+        access = await _perms.check();
+        await _applyAccess();
+      } while (_reloadAgain);
     } finally {
       _reloading = false;
+      loading = false;
+      notifyListeners();
     }
   }
 
-  Future<void> _reload() async {
+  Future<void> _applyAccess() async {
+    if (access == PhotoAccess.denied) {
+      queue.clear();
+      _history.clear();
+      _allPhotos = null;
+      totalPhotos = 0;
+      notifyListeners();
+      return;
+    }
+    await _reloadLibrary();
+  }
+
+  Future<void> _reloadLibrary() async {
     queue.clear();
     _history.clear();
     _nextPage = 0;
     _noMorePages = false;
-    final paths = await PhotoManager.getAssetPathList(
-      type: RequestType.image,
-      onlyAll: true,
-    );
+    final paths = await _loadPaths();
     _allPhotos = paths.isEmpty ? null : paths.first;
     totalPhotos = _allPhotos == null ? 0 : await _allPhotos!.assetCountAsync;
     await _syncTrashWithLibrary();

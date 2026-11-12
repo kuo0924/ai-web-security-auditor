@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:photo_manager/photo_manager.dart';
 
 import 'app_store.dart';
 import 'screens/swipe_screen.dart';
@@ -36,13 +35,7 @@ class _SwipeCleanAppState extends State<SwipeCleanApp> with WidgetsBindingObserv
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     final s = widget.store;
-    if (state == AppLifecycleState.resumed && !s.loading && !s.inSystemOp) {
-      if (s.permission?.hasAccess ?? false) {
-        s.reload();
-      } else if (s.permission != null) {
-        s.requestPermissionAndLoad();
-      }
-    }
+    if (state == AppLifecycleState.resumed) s.onResume();
   }
 
   @override

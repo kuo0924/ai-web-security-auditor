@@ -3,6 +3,7 @@ import 'package:photo_manager/photo_manager.dart';
 import 'package:photo_manager_image_provider/photo_manager_image_provider.dart';
 
 import '../app_store.dart';
+import '../permissions.dart';
 import '../widgets/swipe_card.dart';
 import 'kept_screen.dart';
 import 'trash_screen.dart';
@@ -67,8 +68,8 @@ class _SwipeScreenState extends State<SwipeScreen> {
     if (store.loading) {
       return const Center(child: CircularProgressIndicator());
     }
-    final perm = store.permission;
-    if (perm == null || !perm.hasAccess) {
+    final perm = store.access;
+    if (perm == null || perm == PhotoAccess.denied) {
       return _PermissionView(store: store);
     }
 
@@ -88,16 +89,13 @@ class _SwipeScreenState extends State<SwipeScreen> {
               ),
             ],
           ),
-        if (perm == PermissionState.limited)
+        if (perm == PhotoAccess.partial)
           ListTile(
             dense: true,
             leading: const Icon(Icons.info_outline),
             title: const Text('目前只允許讀取部分照片'),
             trailing: TextButton(
-              onPressed: () async {
-                await PhotoManager.presentLimited();
-                await store.reload();
-              },
+              onPressed: _showMoreAccessSheet,
               child: const Text('選更多'),
             ),
           ),
@@ -117,6 +115,52 @@ class _SwipeScreenState extends State<SwipeScreen> {
         _actionBar(),
       ],
     );
+  }
+
+  /// 部分存取時的「選更多」：可以多選幾張，或直接改成允許全部（BUG-002）。
+  Future<void> _showMoreAccessSheet() async {
+    final choice = await showModalBottomSheet<_MoreAccess>(
+      context: context,
+      showDragHandle: true,
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(8, 0, 8, 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.add_photo_alternate_outlined),
+                title: const Text('再多選幾張'),
+                subtitle: const Text('開啟系統的照片選擇器'),
+                onTap: () => Navigator.pop(ctx, _MoreAccess.pickMore),
+              ),
+              ListTile(
+                leading: const Icon(Icons.photo_library_outlined),
+                title: const Text('允許存取全部照片'),
+                subtitle: const Text('到系統設定，把「相片和影片」改成允許全部'),
+                onTap: () => Navigator.pop(ctx, _MoreAccess.allowAll),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                child: Text(
+                  '允許存取全部照片，才能幫你找出所有重複和相似的照片，整理時也不會漏掉。',
+                  style: Theme.of(ctx).textTheme.bodySmall,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    switch (choice) {
+      case _MoreAccess.pickMore:
+        await store.pickMore();
+      case _MoreAccess.allowAll:
+        // 從設定回來時 App 會回到前景，onResume 會重新檢查權限並更新畫面。
+        await store.openSettings();
+      case null:
+        break;
+    }
   }
 
   Widget _cardStack() {
@@ -266,6 +310,9 @@ class _RoundButton extends StatelessWidget {
   }
 }
 
+enum _MoreAccess { pickMore, allowAll }
+
+/// 完全拒絕權限時的畫面。
 class _PermissionView extends StatelessWidget {
   const _PermissionView({required this.store});
   final AppStore store;
@@ -286,6 +333,7 @@ class _PermissionView extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             const Text(
+              '這個 App 要能讀取相簿，才能讓你一張一張滑過照片整理。\n'
               '照片只會在你的手機上處理，不會上傳到任何地方。',
               textAlign: TextAlign.center,
             ),
@@ -294,9 +342,18 @@ class _PermissionView extends StatelessWidget {
               onPressed: store.requestPermissionAndLoad,
               child: const Text('允許存取相簿'),
             ),
-            TextButton(
-              onPressed: PhotoManager.openSetting,
-              child: const Text('到系統設定開啟'),
+            const SizedBox(height: 8),
+            OutlinedButton.icon(
+              onPressed: store.openSettings,
+              icon: const Icon(Icons.settings_outlined),
+              label: const Text('前往設定'),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              '如果按「允許存取相簿」沒有跳出視窗，代表之前選過「不允許」，'
+              '請按「前往設定」→ 權限 → 相片和影片，改成允許。',
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodySmall,
             ),
           ],
         ),
