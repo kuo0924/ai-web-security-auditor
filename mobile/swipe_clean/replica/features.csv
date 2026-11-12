@@ -1,24 +1,24 @@
 feature,area,priority,original,clone,notes
-Request photo library permission incl. limited access,onboarding,must,yes,no,S02; handle denied + limited states
-Swipe right to keep / left to archive with live overlay,swipe,must,yes,no,S06; decided 2026-11-12: right=keep / left=delete (same as Picnic)
-Card stack with next photo preloaded,swipe,must,yes,no,S06; smooth with iCloud thumbnails
-Tap buttons as alternative to swiping,swipe,must,yes,no,accessibility; also prototype has it
-Swipe up to hide photo,hide,must,no,no,our addition (not in Picnic); iOS system Hidden album / Android in-app locked vault
+Request photo library permission incl. limited access,onboarding,must,yes,yes,S02; handle denied + limited states | clone: Expo: full/partial/denied + 選更多; device not verified yet
+Swipe right to keep / left to archive with live overlay,swipe,must,yes,yes,S06; decided 2026-11-12: right=keep / left=delete (same as Picnic) | clone: Expo S06; touch e2e on web; device not verified yet
+Card stack with next photo preloaded,swipe,must,yes,partial,S06; smooth with iCloud thumbnails | clone: next card rendered behind; no thumbnail prefetch of following 5 yet
+Tap buttons as alternative to swiping,swipe,must,yes,yes,accessibility; also prototype has it | clone: ActionBar + accessibilityActions
+Swipe up to hide photo,hide,must,no,partial,our addition (not in Picnic); iOS system Hidden album / Android in-app locked vault | clone: gesture + recorded as hiding in hidden_items; vault / iOS isHidden not built
 Android locked vault: copy+sha256 verify then delete original with rollback on cancel,hide,must,no,no,S15; data-loss safeguards in architecture 4.2
 Warn that uninstalling deletes Android vault photos + move-all-back button,hide,must,no,no,S16
 Unlock hidden album with biometrics and block screenshots,hide,must,no,no,expo-local-authentication + expo-screen-capture
 Unhide photo back to gallery (restore original folder/name/date on Android),hide,must,no,no,F09; Android gets a new asset id
-Undo last swipe,undo,must,yes,no,S06 Undo shown briefly after action (ScreensDesign 02:30); depth unknown
-Kept photos never shown again,swipe,must,yes,no,Decision store
-Archive (in-app bin) listing archived photos with total size,archive,must,yes,no,S09
-Restore photo from archive back to unsorted,undo,must,yes,no,S09 'waits safely until you're sure'
-Empty archive in one tap via iOS delete (goes to Recently Deleted),delete,must,yes,no,S09 -> S10 system alert -> S11
-Handle user tapping Don't Allow in system delete alert,delete,must,yes,no,items stay archived
-Explain Recently Deleted 30-day recovery after deletion,delete,must,yes,no,F07; iOS has no API to restore from Recently Deleted
+Undo last swipe,undo,must,yes,yes,S06 Undo shown briefly after action (ScreensDesign 02:30); depth unknown | clone: toast 4s + undo button; history 50
+Kept photos never shown again,swipe,must,yes,yes,Decision store | clone: decisions table; reopen resumes
+Archive (in-app bin) listing archived photos with total size,archive,must,yes,partial,"S09 | clone: grid + restore; total size shown in confirm sheet, not on the grid header"
+Restore photo from archive back to unsorted,undo,must,yes,yes,S09 'waits safely until you're sure'
+Empty archive in one tap via iOS delete (goes to Recently Deleted),delete,must,yes,partial,S09 -> S10 system alert -> S11 | clone: Android createTrashRequest built; iOS path written (expo-media-library delete) but not run on iPhone
+Handle user tapping Don't Allow in system delete alert,delete,must,yes,yes,items stay archived | clone: items stay archived; tested with fake + reconcile
+Explain Recently Deleted 30-day recovery after deletion,delete,must,yes,yes,F07; iOS has no API to restore from Recently Deleted | clone: S10 confirm + S11 result copy
 Detect groups of similar / burst photos on-device,similar,must,unknown,no,evidence only from reviews ('compare feature'); Vision feature prints
 Compare view: pick best of a similar group and archive the rest,similar,must,unknown,no,S08 guess
 Sort library into sections by month with progress,sections,should,yes,no,S05 review 'finish a month or section'
-Storage freed celebration with GB counter,feedback,should,yes,no,S11 ScreensDesign 03:08
+Storage freed celebration with GB counter,feedback,should,yes,partial,S11 ScreensDesign 03:08 | clone: S11 shows ~GB; no count-up animation yet
 Section completed screen,feedback,should,yes,no,S12
 Double-tap to favorite synced to Apple Photos Favorites,swipe,should,yes,no,listing 'Favorite Sync'
 Video and Live Photo cards,swipe,should,yes,no,reviews mention photos & videos
@@ -38,10 +38,10 @@ A/B price matrix (10 IAP variants),monetization,skip,yes,skip,not a feature; pic
 Picnic name / icon / copy / seasonal events,brand,skip,yes,skip,owned by Picnic Ventures / MWM; rebrand
 MWM paid user acquisition network,growth,skip,yes,skip,their ad spend and publishing network are not part of the product
 Cloud backup / upload of photos,privacy,skip,no,skip,original is on-device only; keep it that way
-No ads ever (no ad SDK) and say so in store listing,positioning,must,no,no,F1 fixes.md: ads 364 reviews / 4 apps; Slider 63 praise for no ads
+No ads ever (no ad SDK) and say so in store listing,positioning,must,no,partial,F1 fixes.md: ads 364 reviews / 4 apps; Slider 63 praise for no ads | clone: no ad SDK in app; store listing not written yet
 One-time purchase instead of weekly subscription; no paywall before first swipe,monetization,must,no,no,F2 fixes.md: pricing 263 / weekly 114 / billing 70; details in replica-launch
-Save after every swipe and resume exactly where the user left off,swipe,must,no,no,F3 fixes.md: progress lost 15 reviews / 4 apps
-Show delete result (N photos / ~X GB moved to system trash) and explain failures,delete,must,no,no,F4 fixes.md: can't delete 10 / space not freed 10
+Save after every swipe and resume exactly where the user left off,swipe,must,no,yes,F3 fixes.md: progress lost 15 reviews / 4 apps | clone: SQLite per swipe; test: reopen resumes at next photo
+Show delete result (N photos / ~X GB moved to system trash) and explain failures,delete,must,no,yes,F4 fixes.md: can't delete 10 / space not freed 10 | clone: S11 + partial/cancel messages
 Keep month sections simple (one way to browse),sections,should,no,no,F5 fixes.md: organize 105; Slidebox redesign complaints
 Similar-photo compare: auto-advance to next group and no accidental swipe,similar,should,no,no,F6 fixes.md: Picnic compare bugs
 Live Photos do not autoplay (long-press to play),swipe,should,no,no,F7 fixes.md: Slidebox reviews
