@@ -40,3 +40,8 @@ yarn-error.*
 /ios
 /android
 dist-web/
+
+# 商店金鑰：絕對不要 commit
+secrets/
+*.keystore
+*.jks
