@@ -1,4 +1,7 @@
-# Bugs：滑滑整理（Flutter 原型，mobile/swipe_clean）
+# Bugs
+
+- BUG-001、002：Flutter 原型（mobile/swipe_clean）
+- BUG-003 起：Expo 版（mobile/app）
 
 嚴重度：S1 資料遺失／安全／付款錯誤／核心流程卡死；S2 功能壞掉、沒有替代方法；S3 壞掉但有替代方法，或明顯錯誤；S4 外觀。
 
@@ -6,6 +9,9 @@
 | --- | --- | --- | --- |
 | BUG-001 | 改成完整權限後，「部分照片」提示仍一直顯示 | S2 | fixed in 73f49b8 |
 | BUG-002 | 「選更多」無法升級成完整權限 | S3 | fixed in 73f49b8 |
+| BUG-003 | （Expo）載入下一頁期間繼續滑，滑過的照片會跑回來 | S2 | fixed in 3b628c4（上線前就修掉） |
+| BUG-004 | （Expo）背景載入與滑動的資料庫交易交錯，滑動悄悄寫入失敗 | S1 | fixed in 3b628c4（上線前就修掉） |
+| BUG-005 | （Expo）假相簿的刪除方式不在 schema 允許範圍 | S4 | fixed in 3b628c4（只影響測試） |
 
 ---
 
@@ -100,3 +106,50 @@ Status：fixed in 73f49b8
 
 - iOS「有限存取」→ 設定改成「完整存取」後回到 App：邏輯相同（`check()` + `onResume()`），但還沒在 iPhone 上測。
 - Android 13（API 33）沒有「部分照片」選項：預期只會出現完整／拒絕兩種狀態，待實機確認。
+
+---
+
+## Expo 版（mobile/app）
+
+這三個都是在寫垂直切片時，由測試抓到、在第一次 commit 前就修好的。記在這裡，是因為它們都是「實機上也會發生」的設計錯誤。
+
+### BUG-003：載入下一頁期間繼續滑，滑過的照片會跑回來
+
+- Severity：S2（重複出現已決定的照片，看起來像沒存到）
+- Flow / case：F02 整理一個分區／F02-E（滑很快）
+- Screen：S06
+- Build：3b628c4 之前　Device：Jest（假相簿＋node:sqlite）
+
+Steps：連續滑過一頁（60 張）以上，不等背景載入完成。
+Expected：每張只出現一次。
+Actual：載入完成時，牌堆被「開始載入時的快照」覆蓋，剛滑過的照片又回到最前面。
+Evidence：`session.test.ts`「載入下一頁期間繼續滑：滑過的照片不會跑回來」；修正前 `超過 500 張分批送出` 只封存到 60 張。
+Fix：合併進「目前」的牌堆，並跳過載入期間才做決定的照片（`decidedThisSession`）。`loadMore()` 回傳進行中的 promise。
+Status：fixed in 3b628c4
+
+### BUG-004：背景載入與滑動的資料庫交易交錯，滑動悄悄寫入失敗
+
+- Severity：**S1**（使用者的決定遺失，而且沒有任何提示）
+- Flow / case：F02
+- Screen：S06
+- Build：3b628c4 之前　Device：Jest（node:sqlite）；expo-sqlite 的 `withTransactionAsync` 文件也說明不是互斥的，實機同樣會發生
+
+Steps：背景載入正在寫 `assets` 時滑一張。
+Expected：決定寫入成功。
+Actual：兩個交易在同一條連線上交錯，`decide` 失敗、被退回，錯誤只放進 `state.error`，畫面沒有提示。
+Fix：Repo 裡所有資料庫存取排隊；交易內部用自己的 handle。測試加上「每個測試結束時 `state.error` 必須是空的」。
+Status：fixed in 3b628c4
+
+### BUG-005：假相簿的刪除方式不在 schema 允許範圍
+
+- Severity：S4（只影響測試）
+- Actual：`delete_batches.method` 的 CHECK 不允許 `'fake'`，真的 SQL 拒絕寫入。
+- Fix：移除 `'fake'`，假相簿改成模擬 Android 11+（`android_trash`）。
+- Status：fixed in 3b628c4
+
+## To check（Expo 版，還沒重現，不算 bug）
+
+- Android 實機：一次 `createTrashRequest` 500 張會不會超過 Binder 上限。
+- iOS：expo-media-library 刪除時按「不允許」的錯誤訊息是否被 `cancel|denied|grant` 判斷到（不然會顯示「沒有移除成功」而不是「已取消」，照片都還在，不影響資料）。
+- iCloud「最佳化儲存空間」：原圖不在手機時，卡片顯示要多久、會不會耗流量。
+- web 預覽：滑鼠拖曳不會觸發卡片手勢（觸控可以）。只影響 web 預覽，不影響手機。
