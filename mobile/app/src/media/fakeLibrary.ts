@@ -1,11 +1,12 @@
 import type { Photo, PhotoAccess, TrashOutcome } from '../core/types';
 import type { PhotoLibrary } from './library';
+import { estimateBytes } from '../core/format';
 
 /** 假相簿：web 預覽與測試用。照片用 picsum 以外的「本機產生色塊」，不連任何外部網站。 */
 /**
  * bursts = true：每 5 張的前 3 張是 20 秒內拍的連拍（給相似照片功能預覽／測試）。
  */
-export function makeSeedPhotos(n = 36, start = Date.UTC(2024, 2, 28, 10), opts: { bursts?: boolean } = {}): Photo[] {
+export function makeSeedPhotos(n = 36, start = Date.UTC(2024, 2, 28, 10), opts: { bursts?: boolean; videos?: boolean } = {}): Photo[] {
   const hues = [12, 32, 48, 140, 170, 200, 220, 260, 290, 330];
   return Array.from({ length: n }, (_, i) => {
     const base = opts.bursts && i % 5 < 3 ? i - (i % 5) : i; // 連拍的照片看起來要像
@@ -24,7 +25,10 @@ export function makeSeedPhotos(n = 36, start = Date.UTC(2024, 2, 28, 10), opts: 
       width: 3024,
       height: 4032,
       createdAt: opts.bursts && i % 5 < 3 ? start - Math.floor(i / 5) * 5 * 9 * 3600 * 1000 - (i % 5) * 20_000 : start - i * 9 * 3600 * 1000,
-      mediaType: 'image',
+      ...(opts.videos && i % 5 === 4
+        ? // 每 5 張的第 5 張是影片（不會跟連拍組重疊），長度 8 秒～3 分多，1080p
+          { mediaType: 'video' as const, width: 1920, height: 1080, durationMs: 8_000 + ((i * 37_000) % 200_000) }
+        : { mediaType: 'image' as const, durationMs: null }),
     };
   });
 }
@@ -56,9 +60,23 @@ export function fakeLibrary(opts: { photos?: Photo[]; access?: PhotoAccess; canc
     request: async () => state.access,
     pickMore: async () => {},
     openSettings: async () => {},
-    page: async (offset, limit) => (state.access === 'denied' ? [] : state.photos.slice(offset, offset + limit)),
+    page: async (offset, limit, filter = 'all') => {
+      if (state.access === 'denied') return [];
+      const list =
+        filter === 'videos'
+          ? state.photos.filter((p) => p.mediaType === 'video').sort((a, b) => (b.durationMs ?? 0) - (a.durationMs ?? 0))
+          : state.photos;
+      return list.slice(offset, offset + limit);
+    },
     stillPresent: async (ids) => new Set(ids.filter((id) => state.photos.some((p) => p.id === id))),
-    fileSizes: async (ids) => Object.fromEntries(ids.map((id) => [id, 2_400_000])),
+    // 假的「真實大小」：照片 2.4 MB；影片依長度和解析度（跟 Android 從 MediaStore 讀到的量級一樣）
+    fileSizes: async (ids) =>
+      Object.fromEntries(
+        ids.map((id) => {
+          const p = state.photos.find((x) => x.id === id);
+          return [id, p?.mediaType === 'video' ? estimateBytes(p.width, p.height, 'video', p.durationMs) : 2_400_000];
+        }),
+      ),
     moveToTrash: async (ids): Promise<TrashOutcome> => {
       state.trashCalls.push(ids);
       if (state.cancelTrash) return { status: 'cancelled', method: 'android_trash', removedIds: [] };

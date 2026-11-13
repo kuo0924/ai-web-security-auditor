@@ -7,6 +7,8 @@ import type { HashedPhoto, SimilarGroupDraft } from '../similar/group';
 
 export type ArchiveItem = {
   asset_id: string;
+  /** 影片長度（毫秒），照片是 null */
+  duration_ms?: number | null;
   archived_at: number;
   status: 'archived' | 'deleting' | 'deleted' | 'trashed' | 'restored' | 'missing';
   byte_size: number | null;
@@ -77,10 +79,10 @@ export class Repo implements RepoLike {
       for (let i = 0; i < photos.length; i += 100) {
         const chunk = photos.slice(i, i + 100);
         const params: SqlValue[] = [];
-        for (const p of chunk) params.push(p.id, p.mediaType, p.width, p.height, p.createdAt, sectionKey(p.createdAt), t, t);
+        for (const p of chunk) params.push(p.id, p.mediaType, p.width, p.height, p.durationMs ?? null, p.createdAt, sectionKey(p.createdAt), t, t);
         await tx.run(
-          `INSERT INTO assets (asset_id, media_type, width, height, created_at, section_key, first_seen_at, last_seen_at)
-           VALUES ${chunk.map(() => '(?,?,?,?,?,?,?,?)').join(',')}
+          `INSERT INTO assets (asset_id, media_type, width, height, duration_ms, created_at, section_key, first_seen_at, last_seen_at)
+           VALUES ${chunk.map(() => '(?,?,?,?,?,?,?,?,?)').join(',')}
            ON CONFLICT(asset_id) DO UPDATE SET last_seen_at = excluded.last_seen_at, missing_since = NULL`,
           params,
         );
@@ -106,7 +108,7 @@ export class Repo implements RepoLike {
         await tx.run(
           `INSERT INTO archive_items (asset_id, archived_at, status, byte_size, media_type) VALUES (?,?, 'archived', ?, ?)
            ON CONFLICT(asset_id) DO UPDATE SET status = 'archived', archived_at = excluded.archived_at, delete_batch_id = NULL, finished_at = NULL`,
-          [photo.id, t, estimateBytes(photo.width, photo.height, photo.mediaType), photo.mediaType],
+          [photo.id, t, estimateBytes(photo.width, photo.height, photo.mediaType, photo.durationMs), photo.mediaType],
         );
       }
       if (decision === 'hide') {
@@ -134,7 +136,9 @@ export class Repo implements RepoLike {
 
   async archive(): Promise<ArchiveItem[]> {
     return this.all<ArchiveItem>(
-      "SELECT asset_id, archived_at, status, byte_size, media_type FROM archive_items WHERE status = 'archived' ORDER BY archived_at DESC",
+      `SELECT ai.asset_id, ai.archived_at, ai.status, ai.byte_size, ai.media_type, a.duration_ms FROM archive_items ai
+       LEFT JOIN assets a ON a.asset_id = ai.asset_id
+       WHERE ai.status = 'archived' ORDER BY ai.archived_at DESC`,
     );
   }
 

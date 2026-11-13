@@ -17,6 +17,7 @@ import { resolveSwipe } from '../../core/deck';
 import type { Decision, Photo } from '../../core/types';
 import { tokens, useTheme } from '../../theme';
 import { DecisionStamp, Text } from '../../ui';
+import { VideoOverlay } from './VideoLayer';
 
 export type SwipeCardHandle = { fly: (d: Decision) => void };
 
@@ -126,6 +127,7 @@ export const SwipeCard = memo(
         onAccessibilityAction={(e) => onDecide(e.nativeEvent.actionName as Decision)}
       >
         <PhotoLayers photo={photo} />
+        {photo.mediaType === 'video' ? <VideoOverlay photo={photo} /> : null}
         <LinearGradient
           colors={[t.overlay['scrim-top'], t.overlay['scrim-bottom']]}
           style={styles.scrim}

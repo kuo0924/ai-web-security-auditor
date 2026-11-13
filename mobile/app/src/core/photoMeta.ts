@@ -1,4 +1,4 @@
-/** 卡片上方的拍攝日期／時間／地點（跟 Picnic 一樣放在上方中間，文字自己寫） */
+/** 卡片上方的拍攝日期／時間／地點（放在上方中間） */
 
 export function formatShotDate(ms: number | null): { date: string; time: string } {
   if (ms == null) return { date: '沒有拍攝日期', time: '' };

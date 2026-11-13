@@ -4,7 +4,7 @@ import { Stack, router } from 'expo-router';
 import { Image } from 'expo-image';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
-import { formatBytes } from '../core/format';
+import { formatBytes, formatDuration } from '../core/format';
 import type { ArchiveItem } from '../data/repo';
 import type { EmptyResult } from '../state/session';
 import { useSession } from '../state/AppProvider';
@@ -113,12 +113,20 @@ export default function ArchiveScreen() {
               return (
                 <Pressable
                   accessibilityRole="button"
-                  accessibilityLabel={`${item.media_type === 'video' ? '影片' : '照片'}，約 ${formatBytes(item.byte_size ?? 0)}`}
+                  accessibilityLabel={`${item.media_type === 'video' ? `影片 ${formatDuration(item.duration_ms)}` : '照片'}，約 ${formatBytes(item.byte_size ?? 0)}`}
                   accessibilityState={{ selected: on }}
                   onPress={() => toggle(item.asset_id)}
                   style={{ width: size, height: size, borderRadius: t.radius.md, overflow: 'hidden', backgroundColor: t.color.surface }}
                 >
                   <Image source={{ uri: ctrl.uriFor(item.asset_id) }} style={{ flex: 1 }} contentFit="cover" recyclingKey={item.asset_id} transition={100} />
+                  {item.media_type === 'video' ? (
+                    <View style={{ position: 'absolute', left: 6, bottom: 6, flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 6, paddingVertical: 2, borderRadius: t.radius.pill, backgroundColor: t.overlay.glass }}>
+                      <Icon name="play" size={10} color="on-photo" scheme="dark" />
+                      <Text variant="caption" scheme="dark" color="on-photo" maxScale={1.2} style={{ fontSize: 11, lineHeight: 14 }}>
+                        {formatDuration(item.duration_ms)}
+                      </Text>
+                    </View>
+                  ) : null}
                   {on ? (
                     <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, borderWidth: 3, borderColor: t.color.accent, borderRadius: t.radius.md, backgroundColor: t.overlay.dim, alignItems: 'flex-end', padding: 6 }}>
                       <View style={{ width: 24, height: 24, borderRadius: 12, backgroundColor: t.color.accent, alignItems: 'center', justifyContent: 'center' }}>

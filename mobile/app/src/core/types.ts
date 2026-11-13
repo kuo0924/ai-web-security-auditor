@@ -10,7 +10,12 @@ export type Photo = {
   height: number | null;
   createdAt: number | null;
   mediaType: 'image' | 'video';
+  /** 影片長度（毫秒）；照片是 null。expo-media-library 兩個平台回傳的都是毫秒（JSDoc 寫秒是錯的） */
+  durationMs?: number | null;
 };
+
+/** 滑動牌堆要看什麼：全部（新到舊），或只看影片（最長的先，通常也最佔空間） */
+export type DeckFilter = 'all' | 'videos';
 
 export type TrashMethod = 'ios_recently_deleted' | 'android_trash' | 'android_delete' | 'android_legacy_delete';
 

@@ -10,7 +10,7 @@
       "supportsTablet": true,
       "bundleIdentifier": "tw.onceover.app",
       "infoPlist": {
-        "NSPhotoLibraryUsageDescription": "需要讀取相簿，才能讓你逐張滑動整理照片。照片只在手機上處理，不會上傳。",
+        "NSPhotoLibraryUsageDescription": "需要讀取相簿，才能讓你逐張滑動整理照片和影片。照片只在手機上處理，不會上傳。",
         "NSPhotoLibraryAddUsageDescription": "需要相簿權限來整理照片。",
         "NSFaceIDUsageDescription": "用 Face ID 解鎖上鎖相簿。"
       }
@@ -28,12 +28,12 @@
         "android.permission.READ_MEDIA_IMAGES",
         "android.permission.READ_MEDIA_VISUAL_USER_SELECTED",
         "android.permission.USE_BIOMETRIC",
-        "android.permission.ACCESS_MEDIA_LOCATION"
+        "android.permission.ACCESS_MEDIA_LOCATION",
+        "android.permission.READ_MEDIA_VIDEO"
       ],
       "blockedPermissions": [
         "android.permission.READ_MEDIA_AUDIO",
         "android.permission.RECORD_AUDIO",
-        "android.permission.READ_MEDIA_VIDEO",
         "android.permission.SYSTEM_ALERT_WINDOW"
       ]
     },
@@ -48,11 +48,12 @@
       [
         "expo-media-library",
         {
-          "photosPermission": "需要讀取相簿，才能讓你逐張滑動整理照片。照片只在手機上處理，不會上傳。",
+          "photosPermission": "需要讀取相簿，才能讓你逐張滑動整理照片和影片。照片只在手機上處理，不會上傳。",
           "savePhotosPermission": "需要相簿權限來整理照片。",
           "isAccessMediaLocationEnabled": true
         }
-      ]
+      ],
+      "expo-video"
     ],
     "scheme": "onceover",
     "experiments": {

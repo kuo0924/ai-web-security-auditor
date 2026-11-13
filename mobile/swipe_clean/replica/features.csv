@@ -21,7 +21,7 @@ Sort library into sections by month with progress,sections,should,yes,no,S05 rev
 Storage freed celebration with GB counter,feedback,should,yes,yes,S11 ScreensDesign 03:08 | clone: S11 count-up number (respects Reduce Motion)
 Section completed screen,feedback,should,yes,no,S12
 Double-tap to favorite synced to Apple Photos Favorites,swipe,should,yes,no,listing 'Favorite Sync'
-Video and Live Photo cards,swipe,should,yes,no,reviews mention photos & videos
+Video and Live Photo cards,swipe,should,yes,partial,"reviews mention photos & videos | clone: videos done (cover + duration badge + tap to play muted, sound toggle, size from duration); Live Photo not yet"
 Daily free swipe quota with upgrade prompt,monetization,should,yes,no,S07 100/day in listing
 Subscription paywall with free trial (StoreKit 2),monetization,should,yes,no,S04 weekly+trial / annual; consider lifetime option (review ask)
 Library scan onboarding animation,onboarding,should,yes,no,S03 ScreensDesign 00:26
@@ -47,3 +47,4 @@ Similar-photo compare: auto-advance to next group and no accidental swipe,simila
 Live Photos do not autoplay (long-press to play),swipe,should,no,no,F7 fixes.md: Slidebox reviews
 Ask for rating only after first successful cleanup,feedback,could,no,no,F8 fixes.md: 6 reviews (thin) but free to fix
 "Show shot date, time and place on each photo (top centre)",swipe,should,yes,yes,user request 2026-11-12 (like Picnic); place via system geocoder without location permission; Android needs ACCESS_MEDIA_LOCATION + setRequireOriginal
+"Videos-only mode, longest first",swipe,should,no,yes,user request 2026-11-13; frees space fastest

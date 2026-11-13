@@ -11,7 +11,7 @@ export async function createSession(): Promise<AppControllers> {
   const params = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
   const access = (params?.get('access') as 'full' | 'partial' | 'denied' | null) ?? 'full';
   const repo = new MemoryRepo();
-  const lib = fakeLibrary({ access, photos: makeSeedPhotos(36, undefined, { bursts: true }) });
+  const lib = fakeLibrary({ access, photos: makeSeedPhotos(36, undefined, { bursts: true, videos: true }) });
   const session = new SessionController(repo, lib);
   return { session, similar: new SimilarController(repo, lib, fakeImageSource, session, { restMs: 0 }), places: new PlaceService(lib, 'TW') };
 }

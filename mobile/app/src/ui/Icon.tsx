@@ -22,6 +22,12 @@ const MAP = {
   compare: { ios: 'square.split.2x1', md: 'compare' },
   info: { ios: 'info.circle', md: 'information-outline' },
   restore: { ios: 'arrow.counterclockwise', md: 'restore' },
+  play: { ios: 'play.fill', md: 'play' },
+  pause: { ios: 'pause.fill', md: 'pause' },
+  'sound-off': { ios: 'speaker.slash.fill', md: 'volume-off' },
+  'sound-on': { ios: 'speaker.wave.2.fill', md: 'volume-high' },
+  video: { ios: 'video.fill', md: 'video' },
+  photo: { ios: 'photo', md: 'image-outline' },
 } as const satisfies Record<string, { ios: SFSymbol; md: keyof typeof MaterialCommunityIcons.glyphMap }>;
 
 export type IconName = keyof typeof MAP;

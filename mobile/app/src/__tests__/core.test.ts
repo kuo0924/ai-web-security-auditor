@@ -141,3 +141,22 @@ describe('拍攝日期／地點', () => {
     await expect(svc.label('x')).resolves.toBeNull();
   });
 });
+
+import { formatDuration } from '../core/format';
+
+describe('影片', () => {
+  test('formatDuration', () => {
+    expect(formatDuration(42_000)).toBe('0:42');
+    expect(formatDuration(62_400)).toBe('1:02');
+    expect(formatDuration(3_723_000)).toBe('1:02:03');
+    expect(formatDuration(null)).toBe('0:00');
+  });
+  test('影片大小依長度和解析度估算：1080p 一分鐘約 100 MB；4K 更大；沒有長度當 30 MB', () => {
+    const fhd = estimateBytes(1920, 1080, 'video', 60_000);
+    expect(fhd / 1024 ** 2).toBeGreaterThan(80);
+    expect(fhd / 1024 ** 2).toBeLessThan(130);
+    expect(estimateBytes(3840, 2160, 'video', 60_000)).toBeGreaterThan(fhd * 2);
+    expect(estimateBytes(1920, 1080, 'video', null)).toBe(30 * 1024 ** 2);
+    expect(estimateBytes(1920, 1080, 'video', 120_000)).toBeCloseTo(fhd * 2, -3);
+  });
+});

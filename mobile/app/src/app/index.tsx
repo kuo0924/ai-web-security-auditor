@@ -5,12 +5,12 @@ import { Image } from 'expo-image';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import { prefetchTargets } from '../core/deck';
-import { sectionKey, sectionLabel } from '../core/format';
+import { formatDuration, sectionKey, sectionLabel } from '../core/format';
 import { formatShotDate } from '../core/photoMeta';
 import type { Decision } from '../core/types';
 import { usePlace, useSession, useSimilarGroups } from '../state/AppProvider';
 import { useTheme } from '../theme';
-import { EmptyState, GlassButton, Icon, ProgressBar, Text } from '../ui';
+import { EmptyState, GlassButton, Icon, ProgressBar, Segmented, Text } from '../ui';
 import { ActionBar } from '../features/swipe/ActionBar';
 import { DeniedView, PartialBanner } from '../features/swipe/PermissionViews';
 import { NextCard, SwipeCard, type SwipeCardHandle } from '../features/swipe/SwipeCard';
@@ -128,6 +128,20 @@ export default function SwipeScreen() {
         </View>
         <GlassButton icon="trash-bin" label={`封存區，${state.archiveCount} 張`} badge={state.archiveCount} onPress={() => router.push('/archive')} />
       </View>
+      {/* 全部／只看影片（最長的先，最快清出空間） */}
+      <View style={{ paddingTop: t.space[3] }}>
+        <Segmented
+          value={state.filter}
+          onChange={(f) => {
+            similar?.hold();
+            void ctrl.setFilter(f);
+          }}
+          options={[
+            { value: 'all', label: '全部', icon: 'photo' },
+            { value: 'videos', label: '影片 · 大的先', icon: 'video' },
+          ]}
+        />
+      </View>
       {/* 進度：這次整理了幾張（知道總數時顯示進度條） */}
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: t.space[3], paddingHorizontal: t.space[5], paddingTop: t.space[3] }}>
         <View style={{ flex: 1 }}>
@@ -156,7 +170,7 @@ export default function SwipeScreen() {
               key={top.id}
               ref={card}
               photo={top}
-              label={`照片，${sectionLabel(sectionKey(top.createdAt))}`}
+              label={`${top.mediaType === 'video' ? `影片 ${formatDuration(top.durationMs)}` : '照片'}，${sectionLabel(sectionKey(top.createdAt))}`}
               onDecide={onDecide}
               onThreshold={onThreshold}
               onTouch={onTouch}
@@ -168,7 +182,7 @@ export default function SwipeScreen() {
             <EmptyState
               scheme="dark"
               icon="check"
-              title={state.exhausted ? '全部整理完了' : '載入中…'}
+              title={state.exhausted ? (state.filter === 'videos' ? '影片都整理完了' : '全部整理完了') : '載入中…'}
               body={state.exhausted ? `封存區有 ${state.archiveCount} 張等你確認。` : undefined}
               action={state.archiveCount ? { label: '前往封存區', onPress: () => router.push('/archive') } : undefined}
             />

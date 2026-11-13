@@ -1,4 +1,4 @@
-import type { Photo, PhotoAccess, TrashMethod, TrashOutcome } from '../core/types';
+import type { DeckFilter, Photo, PhotoAccess, TrashMethod, TrashOutcome } from '../core/types';
 import type { Place } from '../core/photoMeta';
 
 /**
@@ -12,8 +12,8 @@ export interface PhotoLibrary {
   request(): Promise<PhotoAccess>;
   pickMore(): Promise<void>;
   openSettings(): Promise<void>;
-  /** 新到舊；offset／limit 分頁 */
-  page(offset: number, limit: number): Promise<Photo[]>;
+  /** offset／limit 分頁。all：照片＋影片，新到舊；videos：只有影片，最長的先 */
+  page(offset: number, limit: number, filter?: DeckFilter): Promise<Photo[]>;
   /** 回傳其中「還在相簿裡」的 ID（刪除後對帳用） */
   stillPresent(ids: string[]): Promise<Set<string>>;
   /** 檔案大小；拿不到就是 null（由呼叫端估算） */

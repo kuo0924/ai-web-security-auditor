@@ -9,3 +9,4 @@ export * from './EmptyState';
 export * from './Sheet';
 export * from './GlassButton';
 export * from './CountUp';
+export * from './Segmented';

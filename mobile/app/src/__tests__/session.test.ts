@@ -189,3 +189,46 @@ describe('對帳：刪到一半 App 被關掉', () => {
     expect(again.state.stats.removed).toBe(1);
   });
 });
+
+describe('影片', () => {
+  test('「全部」裡有照片也有影片，新到舊', async () => {
+    const { s } = await setup({ photos: makeSeedPhotos(20, undefined, { videos: true }) });
+    const types = new Set(s.state.deck.queue.map((p) => p.mediaType));
+    expect(types).toEqual(new Set(['image', 'video']));
+    const times = s.state.deck.queue.map((p) => p.createdAt ?? 0);
+    expect([...times].sort((a, b) => b - a)).toEqual(times);
+  });
+
+  test('切到「只看影片」：只有影片、最長的先；已決定的照片不受影響', async () => {
+    const { s } = await setup({ photos: makeSeedPhotos(40, undefined, { videos: true }) });
+    await s.decide('delete'); // 先在「全部」刪一張照片
+    await s.setFilter('videos');
+    const q = s.state.deck.queue;
+    expect(q.length).toBe(8);
+    expect(q.every((p) => p.mediaType === 'video')).toBe(true);
+    const d = q.map((p) => p.durationMs ?? 0);
+    expect([...d].sort((a, b) => b - a)).toEqual(d);
+    expect(s.state.archiveCount).toBe(1);
+  });
+
+  test('刪一支影片：封存區的大小用影片長度估算（不是 3 MB 的照片估算）', async () => {
+    const { s } = await setup({ photos: makeSeedPhotos(20, undefined, { videos: true }) });
+    await s.setFilter('videos');
+    const v = s.state.deck.queue[0];
+    await s.decide('delete');
+    const [item] = await s.archiveItems();
+    expect(item.asset_id).toBe(v.id);
+    expect(item.media_type).toBe('video');
+    expect(item.duration_ms).toBe(v.durationMs);
+    expect(item.byte_size!).toBeGreaterThan(10 * 1024 ** 2);
+  });
+
+  test('切回「全部」：剛剛在影片模式處理過的不會再出現', async () => {
+    const { s } = await setup({ photos: makeSeedPhotos(20, undefined, { videos: true }) });
+    await s.setFilter('videos');
+    const v = s.state.deck.queue[0];
+    await s.decide('keep');
+    await s.setFilter('all');
+    expect(s.state.deck.queue.some((p) => p.id === v.id)).toBe(false);
+  });
+});

@@ -1,5 +1,5 @@
 import { append, decide as deckDecide, initialDeck, undo as deckUndo, type DeckState } from '../core/deck';
-import type { Decision, Photo, PhotoAccess, TrashOutcome } from '../core/types';
+import type { DeckFilter, Decision, Photo, PhotoAccess, TrashOutcome } from '../core/types';
 import type { ArchiveItem, Stats } from '../data/repo';
 import type { RepoLike } from '../data/types';
 import type { PhotoLibrary } from '../media/library';
@@ -21,6 +21,8 @@ export type EmptyResult = {
 export type SessionState = {
   phase: 'starting' | 'ready';
   access: PhotoAccess | null;
+  /** 全部，或只看影片（最長的先） */
+  filter: DeckFilter;
   deck: DeckState;
   exhausted: boolean;
   archiveCount: number;
@@ -38,6 +40,7 @@ export class SessionController {
   state: SessionState = {
     phase: 'starting',
     access: null,
+    filter: 'all',
     deck: initialDeck([]),
     exhausted: false,
     archiveCount: 0,
@@ -121,7 +124,9 @@ export class SessionController {
       const decided = await this.repo.decidedIds();
       let exhausted = false;
       while (this.state.deck.queue.length < LOW_WATER * 2 && !exhausted) {
-        const page = await this.lib.page(this.offset, PAGE_SIZE);
+        const filter = this.state.filter;
+        const page = await this.lib.page(this.offset, PAGE_SIZE, filter);
+        if (filter !== this.state.filter) return; // 載入途中切換了篩選，這頁作廢
         this.offset += page.length;
         if (page.length < PAGE_SIZE) exhausted = true;
         await this.repo.upsertAssets(page);
@@ -135,6 +140,15 @@ export class SessionController {
     } finally {
       this.loading = false;
     }
+  }
+
+  /** 切換「全部／只看影片」：牌堆重新載入（已做過的決定都保留） */
+  async setFilter(filter: DeckFilter): Promise<void> {
+    if (filter === this.state.filter) return;
+    await this.loadPromise; // 等目前這頁載完，避免舊篩選的照片混進來
+    this.offset = 0;
+    this.set({ filter, deck: initialDeck([]), exhausted: false });
+    await this.loadMore();
   }
 
   async decide(decision: Decision): Promise<void> {

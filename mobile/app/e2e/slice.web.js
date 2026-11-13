@@ -23,7 +23,7 @@ const srv = http.createServer((req, res) => {
   const step = (n, ok) => console.log((ok ? 'PASS ' : 'FAIL ') + n);
   const drag = async (p, dx, dy) => {
     // 真正的觸控事件（手機的操作方式）；滑鼠拖曳在 web 預覽不會觸發手勢
-    const box = await p.getByLabel(/^照片，/).first().boundingBox();
+    const box = await p.getByLabel(/^(照片|影片 [\d:]+)，/).first().boundingBox();
     const x = box.x + box.width/2, y = box.y + box.height/2;
     await p.cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x, y }] });
     for (let i = 1; i <= 15; i++) { await p.cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: x + dx*i/15, y: y + dy*i/15 }] }); await p.waitForTimeout(16); }
@@ -34,7 +34,7 @@ const srv = http.createServer((req, res) => {
     const p = await newPage();
     await p.goto(base + '/', { waitUntil: 'networkidle' }); await p.waitForTimeout(800);
     await p.screenshot({ path: `${out}/S06-swipe.png` });
-    step('S06 shows a photo card', await p.getByLabel(/^照片，/).count() > 0);
+    step('S06 shows a photo card', await p.getByLabel(/^(照片|影片 [\d:]+)，/).count() > 0);
 
     await drag(p, -260, 0);  // left = delete
     step('drag left → archive count 1', await p.getByLabel('封存區，1 張').count() === 1);

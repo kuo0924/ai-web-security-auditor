@@ -85,8 +85,9 @@ export class MemoryRepo implements RepoLike {
         asset_id: photo.id,
         archived_at: Date.now(),
         status: 'archived',
-        byte_size: estimateBytes(photo.width, photo.height, photo.mediaType),
+        byte_size: estimateBytes(photo.width, photo.height, photo.mediaType, photo.durationMs),
         media_type: photo.mediaType,
+        duration_ms: photo.durationMs ?? null,
       });
   }
   async undecide(id: string) {

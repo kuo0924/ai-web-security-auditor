@@ -22,6 +22,7 @@
     "expo-status-bar": "~58.0.5",
     "expo-symbols": "~58.0.5",
     "expo-system-ui": "~58.0.7",
+    "expo-video": "~58.0.14",
     "fast-png": "^8.0.0",
     "jest-expo": "~58.0.14",
     "react": "19.3.0",
@@ -50,7 +51,7 @@
     "test": "jest",
     "export:web": "expo export -p web",
     "sync": "node scripts/sync-tokens.mjs",
-    "e2e:web": "expo export -p web --output-dir dist-web && node e2e/slice.web.js dist-web ../swipe_clean/replica/clone-screens && node e2e/similar.web.js dist-web ../swipe_clean/replica/clone-screens"
+    "e2e:web": "expo export -p web --output-dir dist-web && node e2e/slice.web.js dist-web ../swipe_clean/replica/clone-screens && node e2e/similar.web.js dist-web ../swipe_clean/replica/clone-screens && node e2e/video.web.js dist-web ../swipe_clean/replica/clone-screens"
   },
   "private": true,
   "jest": {

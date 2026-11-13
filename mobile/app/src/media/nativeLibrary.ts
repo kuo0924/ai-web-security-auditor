@@ -5,8 +5,9 @@ import { photoAccessFrom } from '../core/photoAccess';
 import type { Photo, TrashOutcome } from '../core/types';
 import type { PhotoLibrary } from './library';
 
-// 只要照片：不連影片／音訊一起要（Flutter 原型 BUG-001：要了 manifest 沒宣告的權限會永遠被判成「部分」）
-const GRANULAR: ML.GranularPermission[] = ['photo'];
+// 照片＋影片（不要音訊）。這份清單一定要跟 app.json 宣告的權限一致（READ_MEDIA_IMAGES／READ_MEDIA_VIDEO），
+// 不然會重演 Flutter 原型 BUG-001：要了沒宣告的權限，永遠被判成「部分存取」。測試 config.test.ts 會檢查。
+export const GRANULAR: ML.GranularPermission[] = ['photo', 'video'];
 
 /**
  * 使用者在系統刪除視窗按了取消／不允許。
@@ -31,6 +32,7 @@ function toPhoto(m: ML.AssetMetadata): Photo {
     height: m.height ?? null,
     createdAt: m.creationTime ?? null,
     mediaType: m.mediaType === ML.MediaType.VIDEO ? 'video' : 'image',
+    durationMs: m.mediaType === ML.MediaType.VIDEO ? (m.duration ?? null) : null,
   };
 }
 
@@ -39,16 +41,17 @@ const androidTrash = () => Platform.OS === 'android' && !!PhotoActions?.trashSup
 export const nativeLibrary: PhotoLibrary = {
   check: async () => photoAccessFrom(await ML.getPermissionsAsync(false, GRANULAR)),
   request: async () => photoAccessFrom(await ML.requestPermissionsAsync(false, GRANULAR)),
-  pickMore: () => ML.presentPermissionsPicker(['photo']),
+  pickMore: () => ML.presentPermissionsPicker(['photo', 'video']),
   openSettings: () => Linking.openSettings(),
 
-  async page(offset, limit) {
-    const rows = await new ML.Query()
-      .eq(ML.AssetField.MEDIA_TYPE, ML.MediaType.IMAGE)
-      .orderBy({ key: ML.AssetField.CREATION_TIME, ascending: false })
-      .limit(limit)
-      .offset(offset)
-      .exeForMetadata();
+  async page(offset, limit, filter = 'all') {
+    const q =
+      filter === 'videos'
+        ? new ML.Query().eq(ML.AssetField.MEDIA_TYPE, ML.MediaType.VIDEO).orderBy({ key: ML.AssetField.DURATION, ascending: false })
+        : new ML.Query()
+            .within(ML.AssetField.MEDIA_TYPE, [ML.MediaType.IMAGE, ML.MediaType.VIDEO])
+            .orderBy({ key: ML.AssetField.CREATION_TIME, ascending: false });
+    const rows = await q.limit(limit).offset(offset).exeForMetadata();
     return rows.map(toPhoto);
   },
 
